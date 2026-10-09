@@ -557,7 +557,22 @@ function codeRow(r, c){
 function termRow(g){
   return '<li class="grow"><h3>' + esc(g[1]) + '</h3><p>' + esc(g[2]) + '</p></li>';
 }
+S.kmode = store.get('kmode', 'top');
+segClick('#kMode', 'data-k', function(v){ S.kmode = v; store.set('kmode', v); setPressed('#kMode', 'data-k', v); renderCodes(); });
+function fullRow(r){
+  return '<li class="crow"><div class="chead"><h3 style="font-weight:500">' + esc(r[1]) + '</h3><code class="ccode">' + esc(r[0]) + '</code></div>' +
+    (r[3] ? '<p class="what">Opcja — zależy od wyposażenia sterowania.</p>' : '') + '</li>';
+}
+function renderFull(q, c){
+  var list = (FULL_CODES[c] || []).slice(), M = MACHINE_M[S.machine];
+  if (M && MACHINE_ALARMS[S.machine] && MACHINE_ALARMS[S.machine].ctl === c) list = list.concat(M.map(function(r){ return [r[0], r[1] + ' — ' + MACHINES[S.machine].name, 'M']; }));
+  var rows = list.filter(function(r){ return (S.cat === 'all' || S.cat === 'slownik' || r[2] === S.cat) && (!q || norm(r[0] + ' ' + r[1]).indexOf(q) >= 0); });
+  $('#c-count').textContent = 'Pełna lista · ' + (c === 'fanuc' ? 'Fanuc seria 30i (frezarki)' : 'Sinumerik 840D sl') + ' · wyniki: ' + rows.length;
+  $('#c-list').innerHTML = rows.map(fullRow).join('') + '<li class="crow"><p class="fine">Lista standardowa z wiedzy o sterowaniu — dokładne znaczenie i dostępność sprawdź w instrukcji. Kody M poza standardowymi ustala producent maszyny' + (MACHINE_M[S.machine] ? ' (tu kilka znanych z alarmów)' : '') + '. Prześlij zdjęcie listy kodów M z instrukcji maszyny, a dodam je.</p></li>';
+}
 function renderCodes(){
+  setPressed('#kMode', 'data-k', S.kmode);
+  if (S.kmode === 'full' && S.cat !== 'slownik'){ renderFull(norm($('#c-q').value.trim()), ctl()); return; }
   var q = norm($('#c-q').value.trim()), c = ctl();
   var showCodes = S.cat !== 'slownik', showTerms = S.cat === 'slownik' || (S.cat === 'all' && q);
   var codes = showCodes ? CODES.filter(function(r){ return (S.cat === 'all' || r[0] === S.cat) && (!q || norm(r.slice(1, 9).join(' ')).indexOf(q) >= 0); }) : [];
@@ -568,7 +583,7 @@ function renderCodes(){
     '<li class="crow"><p class="note">Nic nie znaleziono. Spróbuj numeru kodu, np. G83, albo słowa, np. „wiercenie”.</p></li>';
 }
 $('#c-q').addEventListener('input', function(){ if (S.cat !== 'all' && S.cat !== 'slownik' && this.value){ S.cat = 'all'; renderCats(); } renderCodes(); });
-function renderCatsVis(){ $('#c-cats').hidden = S.cat === 'slownik'; $('#c-q').placeholder = S.cat === 'slownik' ? 'Szukaj pojęcia: TCP, zużycie, G54…' : 'Szukaj: G41, TCP, wiercenie, zużycie…'; }
+function renderCatsVis(){ $('#c-cats').hidden = S.cat === 'slownik'; $('#kMode').hidden = S.cat === 'slownik'; $('#c-q').placeholder = S.cat === 'slownik' ? 'Szukaj pojęcia: TCP, zużycie, G54…' : 'Szukaj: G41, TCP, wiercenie, zużycie…'; }
 
 /* ===== Alarmy ===== */
 var ALARM_HELP = {
