@@ -78,6 +78,8 @@ function fmtVal(v, dec, ctl){
 var SKIP_F = /(^|[^A-Z_])G\s*0*(10|28|30|52|53|65|66|92)(?![\d.])/i;
 var SKIP_S = /(^|[^A-Z_])(A?TRANS|A?ROT|A?SCALE|A?MIRROR|SUPA|G53|G153|G74|G75|MCALL)(?![A-Z_\d])/i;
 var CALL_S = /(^|[^A-Z_])[A-Z_]{3,}\d*\s*\(/i;
+var FIVE_RE = /(^|[^A-Z_\d.])(G\s*0*(43\.4|43\.5|68\.2|68\.3|68\.4|53\.1|53\.6)(?![\d])|TRAORI|CYCLE800|TCARR|TCOABS|TCOFR)/i;
+var ROT_AX = {A:1, B:1, C:1};
 var CYC_F = {73:1,74:1,76:1,81:1,82:1,83:1,84:1,85:1,86:1,87:1,88:1,89:1};
 
 var WARN_TEXT = {
@@ -86,6 +88,8 @@ var WARN_TEXT = {
   skip:  'Bloki pominięte (G10/G28/G52/G53/G92, przesunięcia układu, wywołania cykli). Jeśli dotyczą wymiaru, popraw je ręcznie.',
   cycZ:  'Zmieniono Z w cyklu wiercenia — sprawdź płaszczyznę R i głębokości Q.',
   scyc:  'Wywołania cykli Sinumerik (CYCLE…, POCKET… itp.) nie są zmieniane — popraw ich parametry ręcznie.',
+  five:  'Program 5-osiowy (G68.2 / G43.4 / CYCLE800 / TRAORI): X, Y i Z mogą być liczone w pochylonym układzie albo wzdłuż osi narzędzia, nie stołu. Zmiana działa w aktywnym układzie — sprawdź symulacją.',
+  rot:   'Zmieniono oś obrotową (wartości w stopniach). Sprawdź kierunek obrotu i zakres osi — na Matsuurze oś A ma ograniczony zakres wychylenia.',
   nodot: 'Wartości bez kropki (np. X10) — w Fanuc mogą znaczyć mikrony. W wyniku wpisano je z kropką. Sprawdź.'
 };
 
@@ -95,7 +99,7 @@ function processProgram(text, o){
   var abs = true, motion = 1, cycle = false;
   var pos = null, posNew = null;
   var out = [], changes = [], warns = {}, order = [];
-  var re = new RegExp('(^|[^A-Z_])(' + ax + ')(\\s*=?\\s*)([+-]?(?:\\d+\\.?\\d*|\\.\\d+))(?![\\d.])', 'gi');
+  var re = new RegExp('(^|[^A-Z_,])(' + ax + ')(\\s*=?\\s*)([+-]?(?:\\d+\\.?\\d*|\\.\\d+))(?![\\d.])', 'gi');
   var minDec = o.mode === 'shift' ? decOf(o.delta) : o.mode === 'replace' ? decOf(o.newVal) : decOf(o.delta / 2);
   var from = o.from || 1, to = o.to || lines.length;
 
@@ -127,6 +131,7 @@ function processProgram(text, o){
     var inRange = ln >= from && ln <= to;
     var skip = o.ctl === 'fanuc' ? SKIP_F.test(code) : (SKIP_S.test(code) || CALL_S.test(code));
     if (o.ctl === 'sinumerik' && inRange && CALL_S.test(code) && /CYCLE|POCKET|SLOT|HOLES|LONGHOLE|CYCLE/i.test(code)) addW('scyc', ln);
+    if (!ROT_AX[ax] && FIVE_RE.test(code)) addW('five', ln);
     var changed = false, marked = '';
 
     parts.forEach(function(p){
@@ -154,6 +159,7 @@ function processProgram(text, o){
         var dec = Math.min(4, Math.max(rawDec(num), minDec));
         if (o.ctl === 'fanuc' && num.indexOf('.') < 0) addW('nodot', ln);
         if (cycle && ax === 'Z') addW('cycZ', ln);
+        if (ROT_AX[ax]) addW('rot', ln);
         changed = true;
         return pre + a + eq + '\u0001' + fmtVal(nv, dec, o.ctl) + '\u0002';
       });

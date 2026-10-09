@@ -169,11 +169,7 @@
     <p class="example" id="g-example"></p>
     <div class="field">
       <span class="lab">Oś</span>
-      <div class="seg" id="g-axis">
-        <button type="button" data-axis="X" aria-pressed="true">X</button>
-        <button type="button" data-axis="Y" aria-pressed="false">Y</button>
-        <button type="button" data-axis="Z" aria-pressed="false">Z</button>
-      </div>
+      <div class="seg" id="g-axis"></div>
     </div>
     <div class="fields">
       <div class="field" data-for="widen">
@@ -186,7 +182,7 @@
         <span class="hint">plus = większy, minus = mniejszy</span>
       </div>
       <div class="field full" data-for="shift" hidden>
-        <label class="lab" for="g-sdelta">O ile przesunąć (mm)</label>
+        <label class="lab" for="g-sdelta" id="g-sdeltaLab">O ile przesunąć (mm)</label>
         <div class="num"><input id="g-sdelta" inputmode="decimal" autocomplete="off" value="0.02"><button type="button" class="pm" data-for="g-sdelta" aria-label="Zmień znak">±</button></div>
         <span class="hint">plus = w stronę plusa osi</span>
       </div>
@@ -395,6 +391,7 @@
           <button type="button" data-th="dark" aria-pressed="false">Ciemny</button>
         </div>
       </div>
+      <label class="switch"><span>Osie obrotowe (4. i 5. oś)<small id="axNote"></small></span><input type="checkbox" id="axSw"></label>
       <label class="switch"><span>Nie wygaszaj ekranu<small>Ekran zostaje włączony, gdy aplikacja jest otwarta.</small></span><input type="checkbox" id="wakeSw"></label>
       <button type="button" class="btn primary wide" id="installBtn" hidden>Zainstaluj aplikację</button>
     </div>

@@ -1,18 +1,18 @@
 var MACHINES = {
   chiron: {
-    name:'Chiron FZ12', short:'FZ12', def:'sinumerik', type:'Pionowe centrum obróbcze, wersje 3- i 5-osiowe',
+    name:'Chiron FZ12', short:'FZ12', def:'sinumerik', fiveAxis:false, rot:['A','B','C'], type:'Pionowe centrum obróbcze, wersje 3- i 5-osiowe',
     ctlNote:'Najczęściej Siemens Sinumerik 840D. Spotykane też wersje z Fanuc.',
     specs:[['Przesuwy X/Y/Z','ok. 500–550 / 300–400 / 280–550 mm (zależnie od wersji)'],['Wrzeciono','HSK50, SK40 lub ISO30; do ok. 15 000 obr/min'],['Magazyn','koszykowy, 20–64 miejsc'],['Wersje','m.in. W, KW (dwie palety), KS i FX (5 osi)']],
     tips:['Sinumerik: korekcja długości i promienia włącza się z T i D. D0 wyłącza korekcję.','Przy zarządzaniu narzędziami narzędzie bywa wywoływane nazwą: T="NAZWA" M6.','Zużycie (ΔL, ΔR) wpisujesz dla konkretnego ostrza D danego narzędzia.']
   },
   matsuura: {
-    name:'Matsuura MX-330', short:'MX-330', def:'fanuc', type:'Centrum 5-osiowe z magazynem palet (PC10)',
+    name:'Matsuura MX-330', short:'MX-330', def:'fanuc', fiveAxis:true, rot:['A','C'], type:'Centrum 5-osiowe z magazynem palet (PC10)',
     ctlNote:'Matsuura G-Tech 31i, zbudowane na Fanuc 31i.',
     specs:[['Przesuwy X/Y/Z','435 / 465 / 560 mm'],['Osie obrotowe','A (wychylna) + C 360°'],['Wrzeciono','BT40, 15 000 obr/min (opcja 20 000)'],['Magazyn','90 narzędzi'],['Detal maks.','Ø330 × 300 mm, 80 kg'],['Palety','10 (Capto C6)']],
-    tips:['Płaszczyzna pochylona: G68.2 + G53.1, cofnięcie G69. TCP: G43.4, anulowanie G49.','Na pochylonej płaszczyźnie X/Y korekcji i programu dotyczą tej płaszczyzny, nie stołu.','Przy kilku paletach sprawdź, który układ (G54… / G54.1 Pn) używa dana paleta.']
+    tips:['Maszyna 5-osiowa: oś A wychyla stół, oś C go obraca. Obróbka 3+2 (płaszczyzna pochylona) albo 5 osi naraz z TCP.','Płaszczyzna pochylona: G68.2 + G53.1, cofnięcie G69. TCP: G43.4, anulowanie G49.','Przy pochylonym narzędziu korekcja długości działa wzdłuż osi narzędzia, a nie wzdłuż Z stołu.','Na pochylonej płaszczyźnie X/Y korekcji i programu dotyczą tej płaszczyzny, nie stołu.','Przy kilku paletach sprawdź, który układ (G54… / G54.1 Pn) używa dana paleta.']
   },
   quaser: {
-    name:'Quaser MV184', short:'MV184', def:'fanuc', type:'Pionowe centrum obróbcze',
+    name:'Quaser MV184', short:'MV184', def:'fanuc', fiveAxis:false, rot:['A','B','C'], type:'Pionowe centrum obróbcze',
     ctlNote:'Zwykle Fanuc (np. 31i-MB lub 0i, zależnie od rocznika). Spotykane też Heidenhain i Siemens.',
     specs:[['Przesuwy X/Y/Z','ok. 1020 / 610 / 610 mm'],['Wrzeciono','stożek 40, typowo 15 000 obr/min'],['Magazyn','np. 30 narzędzi (zależnie od wersji)']],
     tips:['Długie detale mierz po ostygnięciu. Stal rośnie ok. 0,012 mm na metr na każdy °C, aluminium ok. 0,023 mm.','Fanuc: klawisz [+WPROWADŹ] / [+INPUT] dodaje wpisaną wartość do obecnej korekcji.']
@@ -20,6 +20,35 @@ var MACHINES = {
 };
 
 var SAMPLES = {
+  fanuc5: [
+    'O2001 (MX-330 KIESZEN NA SCIANIE POD 30 STOPNI)',
+    'G21 G17 G40 G49 G80 G90',
+    'T5 M06 (FREZ D10)',
+    'G54',
+    'G68.2 X0 Y0 Z0 I0 J-30. K0 (PLASZCZYZNA POCHYLONA)',
+    'G53.1 (USTAW OSIE A I C)',
+    'G00 X0. Y0. S6000 M03',
+    'G43 H5 Z50. M08',
+    'Z2.',
+    'G01 Z-5. F300',
+    'G41 D5 X15. Y0. F800',
+    'Y8.',
+    'G03 X10. Y13. R5.',
+    'G01 X-10.',
+    'G03 X-15. Y8. R5.',
+    'G01 Y-8.',
+    'G03 X-10. Y-13. R5.',
+    'G01 X10.',
+    'G03 X15. Y-8. R5.',
+    'G01 Y0.',
+    'G40 X0.',
+    'G00 Z50. M09',
+    'G69 (KONIEC PLASZCZYZNY POCHYLONEJ)',
+    'G49',
+    'G91 G28 Z0.',
+    'G90',
+    'M30'
+  ].join('\n'),
   fanuc: [
     'O1001 (KIESZEN 40X30 R5)',
     'G21 G17 G40 G49 G80 G90',

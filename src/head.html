@@ -31,7 +31,7 @@ body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-body);-webkit-t
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer;touch-action:manipulation}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.sr{position:absolute!important;width:1px!important;height:1px!important;min-height:0!important;padding:0!important;border:0!important;overflow:hidden!important;clip:rect(0 0 0 0);white-space:nowrap}
 .mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
 h1,h2,h3{text-wrap:balance;margin:0}
 svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
@@ -378,4 +378,6 @@ a.btn{text-decoration:none;color:var(--ink)}
 .lnk{color:var(--accent);font-weight:600}
 .claudecard{border-color:var(--accent);background:var(--accent-soft)}
 .claudecard .connname{font-size:16px}
+.seg button:disabled{opacity:.4;cursor:default}
+.ktile:disabled{opacity:.4;cursor:default}
 </style>

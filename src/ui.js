@@ -14,14 +14,15 @@ var KIND_UI = {
            icon:'<path d="M3 27h26"/><path d="M5 27V11h9v8h13v8"/><path d="M21 27v-8"/><path d="M19 22l2-3 2 3M19 24l2 3 2-3"/>'}
 };
 
+var ROT = {A:1, B:1, C:1};
 var OP_EXAMPLE = {
   widen: function(a){ return a === 'Z'
     ? 'Przykład: dwie powierzchnie w Z (np. Z0 i Z-10) mają się od siebie oddalić o 0.04 → środek <b>-5</b>, zmiana <b>0.04</b>.'
     : 'Przykład: kieszeń ' + a + ' od −20 do 20 (40 mm) ma mieć 40.04 → środek <b>0</b>, zmiana <b>0.04</b>. ' + a + '20 → ' + a + '20.02, ' + a + '-20 → ' + a + '-20.02.'; },
-  shift: function(a){ return a === 'Z'
+  shift: function(a){ if (ROT[a]) return 'Przykład: kąt ' + a + ' ma być o 0.5° większy w całym programie → przesunięcie <b>0.5</b>. Wartości w stopniach.'; return a === 'Z'
     ? 'Przykład: wszystko ma być 0.05 mm głębiej → oś Z, przesunięcie <b>-0.05</b>.'
     : 'Przykład: otwór ma być 0.05 mm dalej w plus ' + a + ' → przesunięcie <b>0.05</b>. Każde ' + a + ' w zakresie zmieni się o tyle samo.'; },
-  replace: function(a){ return a === 'Z'
+  replace: function(a){ if (ROT[a]) return 'Przykład: wychylenie ' + a + '-30. ma być ' + a + '-30.5 → obecna <b>-30</b>, nowa <b>-30.5</b>. Wartości w stopniach.'; return a === 'Z'
     ? 'Przykład: głębokość Z-8 ma być Z-8.05 → obecna <b>-8</b>, nowa <b>-8.05</b>. Inne wartości Z zostają bez zmian.'
     : 'Przykład: wszystkie ' + a + '15 mają być ' + a + '15.1 → obecna <b>15</b>, nowa <b>15.1</b>. Inne wartości zostają bez zmian.'; }
 };
@@ -45,11 +46,15 @@ var S = {
   gEdited: false, gFileName: '',
   theme: store.get('theme', 'auto'),
   wake: store.get('wake', false),
-  rangePending: false
+  rangePending: false,
+  axMap: store.get('axMap', {})
 };
 if (!MACHINES[S.machine]) S.machine = 'chiron';
 if (!KINDS[S.kind]) S.kind = 'inner';
 function ctl(){ return S.ctlMap[S.machine] || MACHINES[S.machine].def; }
+function multiAx(id){ id = id || S.machine; return id in S.axMap ? !!S.axMap[id] : !!MACHINES[id].fiveAxis; }
+function axLabel(id){ id = id || S.machine; return multiAx(id) ? (MACHINES[id].fiveAxis ? '5 osi' : 'osie obrotowe') : ''; }
+function sampleProg(){ return ctl() === 'fanuc' && S.machine === 'matsuura' && multiAx() ? SAMPLES.fanuc5 : SAMPLES[ctl()]; }
 
 function $(s){ return document.querySelector(s); }
 function $$(s){ return Array.prototype.slice.call(document.querySelectorAll(s)); }
@@ -153,7 +158,7 @@ function ctlName(id){ var c = S.ctlMap[id] || MACHINES[id].def; return c === 'fa
 function renderSheet(){
   $('#mlist').innerHTML = Object.keys(MACHINES).map(function(id){
     var m = MACHINES[id];
-    return '<button type="button" class="mopt" role="radio" aria-checked="' + (id === S.machine) + '" data-m="' + id + '"><b>' + esc(m.name) + '</b><small>' + esc(m.type) + '</small><span class="ct">' + esc(ctlName(id)) + '</span></button>';
+    return '<button type="button" class="mopt" role="radio" aria-checked="' + (id === S.machine) + '" data-m="' + id + '"><b>' + esc(m.name) + '</b><small>' + esc(m.type) + '</small><span class="ct">' + esc(ctlName(id)) + (multiAx(id) ? '<br>' + axLabel(id) : '') + '</span></button>';
   }).join('');
   setPressed('#ctlSeg', 'data-ctl', ctl());
   var m = MACHINES[S.machine];
@@ -163,7 +168,10 @@ function renderSheet(){
     '<ul>' + m.tips.map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>' +
     '<p class="fine">Dane typowej konfiguracji. Twoja maszyna może się różnić — sprawdź tabliczkę i dokumentację.</p>';
   $('#wakeSw').checked = !!S.wake;
+  $('#axSw').checked = multiAx();
+  $('#axNote').textContent = 'Oś ' + MACHINES[S.machine].rot.join(', ') + ' w zakładce Program, uwagi 5-osiowe przy korekcji i dla AI.';
 }
+$('#axSw').addEventListener('change', function(){ S.axMap[S.machine] = this.checked; store.set('axMap', S.axMap); onControlChange(); renderSheet(); });
 $('#mlist').addEventListener('click', function(e){
   var b = e.target.closest('.mopt'); if (!b) return;
   S.machine = b.getAttribute('data-m'); store.set('machine', S.machine); onControlChange(); renderSheet();
@@ -174,11 +182,12 @@ segClick('#ctlSeg', 'data-ctl', function(v){ S.ctlMap[S.machine] = v; store.set(
 function onControlChange(){
   if (typeof renderStart === 'function' && !$('#tab-start').hidden) renderStart();
   $('#mpName').textContent = MACHINES[S.machine].name;
-  $('#mpCtl').textContent = ctlName(S.machine);
+  $('#mpCtl').textContent = ctlName(S.machine) + (multiAx() ? ' · ' + (MACHINES[S.machine].fiveAxis ? '5X' : '4/5X') : '');
+  renderAxes();
   renderKorekcja();
   S.alarmCtl = ctl(); setPressed('#a-ctl', 'data-ctl', S.alarmCtl); renderAlarms();
   renderCodes();
-  if (!S.gEdited){ $('#g-prog').value = SAMPLES[ctl()]; S.gFileName = ''; }
+  if (!S.gEdited){ $('#g-prog').value = sampleProg(); S.gFileName = ''; }
   $('#g-old').value = ctl() === 'fanuc' ? '-8.' : '-8';
   onProgChange(true);
 }
@@ -308,6 +317,7 @@ function renderKorekcja(){
   if (Math.abs(r.err) > 1) notes.push(['bad','Różnica ponad 1 mm. To raczej zły wymiar, złe narzędzie albo błąd odczytu, nie zużycie. Sprawdź przed zmianą.']);
   else if (Math.abs(delta) >= 0.1) notes.push(['warn','Duża korekta (0,1 mm lub więcej). Sprawdź pomiar, temperaturę detalu i stan narzędzia.']);
   if (r.status === 'ok' && !zero) notes.push(['','Pomiar mieści się w tolerancji. Korekta tylko przesunie wymiar bliżej celu — możesz ją pominąć.']);
+  if (multiAx()) notes.push(['', isR ? 'Obróbka 5-osiowa: jeśli program z CAM idzie po torze środka narzędzia (bez G41/G42), korekcja D nic nie zmieni — popraw w CAM albo w programie.' : 'Obróbka 5-osiowa: przy pochylonym narzędziu korekcja długości przesuwa narzędzie wzdłuż jego osi, a nie wzdłuż Z stołu.']);
   notes.push(['', isR ? 'Działa tylko, gdy kontur jest frezowany z G41/G42. Zmieni wszystkie kontury robione tym ' + (c === 'fanuc' ? 'numerem D' : 'ostrzem D') + '.' : 'Zmieni wszystkie głębokości robione tym narzędziem.']);
   if (isR && c === 'fanuc' && $('#k-dia').checked) notes.push(['warn','Liczone w średnicy (×2).']);
 
@@ -383,7 +393,7 @@ function onProgChange(now){
   if (now) runG(); else gTimer = setTimeout(runG, 300);
 }
 $('#g-prog').addEventListener('input', function(){ S.gEdited = true; onProgChange(); });
-$('#g-sample').addEventListener('click', function(){ S.gEdited = false; S.gFileName = ''; $('#g-prog').value = SAMPLES[ctl()]; setRange(0, 0); onProgChange(true); });
+$('#g-sample').addEventListener('click', function(){ S.gEdited = false; S.gFileName = ''; $('#g-prog').value = sampleProg(); setRange(0, 0); onProgChange(true); });
 $('#g-clear').addEventListener('click', function(){ S.gEdited = true; S.gFileName = ''; $('#g-prog').value = ''; setRange(0, 0); onProgChange(true); $('#g-prog').focus(); });
 $('#g-file').addEventListener('change', function(){
   var f = this.files && this.files[0]; if (!f) return;
@@ -401,8 +411,18 @@ segClick('#g-axis', 'data-axis', function(v){ S.gAxis = v; setPressed('#g-axis',
 ['#g-center','#g-wdelta','#g-sdelta','#g-old','#g-new','#g-from','#g-to'].forEach(function(id){ $(id).addEventListener('input', function(){ clearTimeout(gTimer); gTimer = setTimeout(runG, 250); }); });
 $('#g-all').addEventListener('click', function(){ setRange(0, 0); runG(); });
 
+function renderAxes(){
+  var list = ['X','Y','Z'].concat(multiAx() ? MACHINES[S.machine].rot : []);
+  if (list.indexOf(S.gAxis) < 0) S.gAxis = 'X';
+  $('#g-axis').innerHTML = list.map(function(a){ return '<button type="button" data-axis="' + a + '" aria-pressed="' + (a === S.gAxis) + '">' + a + (ROT[a] ? '°' : '') + '</button>'; }).join('');
+  showGFields();
+}
 function setRange(a, b){ $('#g-from').value = a || ''; $('#g-to').value = b || ''; S.rangePending = false; }
 function showGFields(){
+  var rot = !!ROT[S.gAxis], wt = $('#g-ops [data-mode=widen]');
+  wt.disabled = rot; wt.title = rot ? 'Dla osi obrotowej użyj Przesuń albo Zamień' : '';
+  if (rot && S.gMode === 'widen'){ S.gMode = 'shift'; setChecked('#g-ops', 'data-mode', 'shift'); }
+  $('#g-sdeltaLab').textContent = rot ? 'O ile obrócić (°)' : 'O ile przesunąć (mm)';
   $$('#tab-gcode .field[data-for]').forEach(function(el){ el.hidden = el.getAttribute('data-for') !== S.gMode; });
   $('#g-example').innerHTML = OP_EXAMPLE[S.gMode](S.gAxis);
 }
@@ -594,7 +614,7 @@ function renderStart(){
   if (!picked){
     $('#st-machines').innerHTML = Object.keys(MACHINES).map(function(id){
       var m = MACHINES[id];
-      return '<button type="button" class="mopt" data-pickm="' + id + '"><b>' + esc(m.name) + '</b><small>' + esc(m.type) + '</small><span class="ct">' + esc(ctlName(id)) + '</span></button>';
+      return '<button type="button" class="mopt" data-pickm="' + id + '"><b>' + esc(m.name) + '</b><small>' + esc(m.type) + '</small><span class="ct">' + esc(ctlName(id)) + (multiAx(id) ? '<br>' + axLabel(id) : '') + '</span></button>';
     }).join('');
     return;
   }
@@ -621,7 +641,7 @@ $('#st-help').addEventListener('click', function(){ openSheet('#help'); });
 applyTheme();
 renderKinds();
 renderCats();
-$('#g-prog').value = SAMPLES[ctl()];
+$('#g-prog').value = sampleProg();
 showGFields();
 renderLog();
 onControlChange();

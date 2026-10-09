@@ -36,4 +36,13 @@ assert.strictEqual(p.changes.length, 1); assert.ok(p.text.includes('Z-8.05'));
 p = processProgram('G01 X10. (X10 KOMENTARZ)', { ctl: 'fanuc', mode: 'shift', axis: 'X', delta: 1 });
 assert.ok(p.text.includes('X11.') && p.text.includes('(X10 KOMENTARZ)'));
 
+// 5 osi: ostrzeżenie przy G68.2 i zmianie X; oś obrotowa; fazka ,C nie jest osią C
+p = processProgram('G68.2 X0 Y0 Z0 I0 J-30. K0\nG53.1\nG01 X10.\nG69', { ctl: 'fanuc', mode: 'shift', axis: 'X', delta: 0.1 });
+assert.ok(p.warnings.some(w => w.key === 'five'), 'brak ostrzeżenia 5 osi');
+p = processProgram('G00 A-30. C90.\nG01 X50. ,C2.\nY20.', { ctl: 'fanuc', mode: 'shift', axis: 'C', delta: 0.5 });
+assert.ok(p.text.includes('C90.5') && p.text.includes(',C2.'), 'fazka ,C nie może się zmienić');
+assert.ok(p.warnings.some(w => w.key === 'rot'));
+p = processProgram('N10 TRAORI\nN20 G1 X10 A=20', { ctl: 'sinumerik', mode: 'replace', axis: 'A', oldVal: 20, newVal: 20.5 });
+assert.ok(p.text.includes('A=20.5'));
+
 console.log('OK — ' + scripts.length + ' skryptów, testy logiki przeszły');

@@ -19,6 +19,7 @@ function aiCtlName(){ return ctlName(S.machine); }
 function aiContext(){
   var m = MACHINES[S.machine], c = ctl();
   return 'Pracuję na frezarce CNC ' + m.name + ', sterowanie ' + aiCtlName() + (c === 'fanuc' ? ' (składnia Fanuc)' : ' (Siemens Sinumerik)') + '. ' +
+    (multiAx() ? 'To maszyna ' + (m.fiveAxis ? '5-osiowa' : 'z osiami obrotowymi') + ' (osie obrotowe ' + m.rot.join(', ') + (c === 'fanuc' ? '; płaszczyzna pochylona G68.2/G53.1, TCP G43.4' : '; płaszczyzna pochylona CYCLE800, TCP TRAORI') + '). ' : '') +
     'Odpowiadaj po polsku, krótko i prostym językiem warsztatowym. Kod podawaj w składni ' + (c === 'fanuc' ? 'Fanuc' : 'Sinumerik') + ' w bloku kodu. ' +
     'Gdy coś zależy od parametrów maszyny, powiedz to wprost. Przy zmianach programu przypomnij o symulacji albo przejeździe na sucho.';
 }
