@@ -157,6 +157,10 @@
     </div>
     <label class="sr" for="g-prog">Treść programu</label>
     <textarea id="g-prog" class="prog" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off" placeholder="Wklej tutaj program…"></textarea>
+    <div id="g-simwrap" class="group" hidden>
+      <div class="simcard" id="g-sim"></div>
+      <p class="fine" id="g-simnote"></p>
+    </div>
   </div>
 
   <div class="stepgroup">
@@ -421,7 +425,7 @@
       <p>Pasek nad zakładkami pokazuje ostatni wynik, gdy przewiniesz w górę. „Następny detal” czyści tylko pomiar.</p>
       <h3>Program</h3>
       <ol>
-        <li>Wklej program albo wczytaj plik.</li>
+        <li>Wklej program albo wczytaj plik. Pod programem zobaczysz podgląd ruchów — ▶ pokazuje je po kolei z opisem.</li>
         <li>Wybierz, co zmienić. Pod każdą opcją jest przykład.</li>
         <li>Sprawdź zmienione linie i ostrzeżenia, potem skopiuj program.</li>
       </ol>
@@ -462,6 +466,7 @@
 /*{{DATA}}*/
 /*{{CODES}}*/
 /*{{UI}}*/
+/*{{SIM}}*/
 /*{{AI}}*/
 </script>
 <!--PWA_TAIL-->

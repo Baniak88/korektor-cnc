@@ -543,7 +543,7 @@ $('#c-cats').addEventListener('click', function(e){
 function codeRow(r, c){
   var term = r[9] ? findTerm(r[9]) : null;
   var code = c === 'fanuc' ? r[2] : r[3], ex = c === 'fanuc' ? r[6] : r[7];
-  var more = r[5] || ex || r[8] || term;
+  var more = r[5] || ex || r[8] || term || (typeof SIM_EX !== 'undefined' && SIM_EX[r[1]]);
   return '<li class="crow"><div class="chead"><h3>' + esc(r[1]) + '</h3><code class="ccode">' + esc(code) + '</code></div>' +
     '<p class="what">' + esc(r[4]) + '</p>' +
     (more ? '<details class="cmore"><summary>Kiedy i przykład</summary><div class="body">' +
@@ -551,6 +551,7 @@ function codeRow(r, c){
       (ex ? '<div class="exb"><span class="lab">Przykład</span><pre>' + esc(ex) + '</pre></div>' : '') +
       (r[8] ? '<p class="cwarn"><b>Uwaga:</b> ' + esc(r[8]) + '</p>' : '') +
       (term ? '<button type="button" class="tlink" data-term="' + r[9] + '">Co to jest: ' + esc(term[1]) + '</button>' : '') +
+      (typeof SIM_EX !== 'undefined' && SIM_EX[r[1]] ? '<button type="button" class="btn wide" data-simcode="' + esc(r[1]) + '">Zobacz ruch</button>' : '') +
       '</div></details>' : '') + '</li>';
 }
 function termRow(g){
@@ -587,13 +588,14 @@ function renderAlarms(){
   var html = rows.map(function(a){
     return '<li class="arow"><div class="ahead"><span class="acode">' + esc(a[0]) + '</span><span class="aen">' + esc(a[1]) + '</span></div>' +
       '<p>' + esc(a[2]) + '</p><p class="chk"><b>Sprawdź:</b> ' + esc(a[3]) + '</p>' +
-      '<button type="button" class="tlink" data-askalarm="' + esc(a[0]) + '">Zapytaj AI o ten alarm</button></li>';
+      '<div class="row" style="gap:16px">' + (S.alarmCtl === 'sinumerik' && /^\d+$/.test(a[0]) ? '<a class="tlink" href="' + ALARM_LOOKUP.sinumerik(a[0]) + '" target="_blank" rel="noopener">Pełny opis (ang.)</a>' : '') +
+      '<button type="button" class="tlink" data-askalarm="' + esc(a[0]) + '">Zapytaj AI</button></div></li>';
   }).join('');
   var M = MACHINE_ALARMS[S.machine], mrows = [];
   if (M && M.ctl === S.alarmCtl){
     mrows = M.list.filter(function(a){ return !q || norm(a[0] + ' ' + a[1]).indexOf(q) >= 0; });
     if (mrows.length){
-      html += '<li class="agroup"><b>' + esc(M.title) + '</b><span>' + (q ? 'wyniki: ' + mrows.length : mrows.length + ' alarmów') + '</span></li>' +
+      html += '<li class="agroup"><b>' + esc(M.title) + '</b><span>' + (q ? 'wyniki: ' + mrows.length : mrows.length + ' z ' + (M.total || mrows.length) + ' · pozostałe znajdziesz, wpisując numer') + '</span></li>' +
         mrows.map(function(a){
           return '<li class="arow"><div class="ahead"><span class="acode">' + esc(a[0]) + '</span></div><p>' + esc(a[1]) + '</p>' +
             '<div class="row" style="gap:16px"><a class="tlink" href="' + M.url + encodeURIComponent(a[0]) + '" target="_blank" rel="noopener">Przyczyna i kroki naprawy (ang.)</a>' +
@@ -602,7 +604,24 @@ function renderAlarms(){
         '<li class="arow"><p class="fine">' + esc(M.src) + '</p></li>';
     }
   }
-  $('#a-list').innerHTML = html || '<li class="arow"><p class="chk">Brak tego alarmu na liście. Sprawdź w diagnostyce sterowania (' + (S.alarmCtl === 'fanuc' ? 'HELP → ALARM' : 'Diagnostyka → Alarmy') + ') albo zapytaj AI.</p></li>';
+  // Numer spoza listy: link do opisu w indeksie alarmów
+  var raw = $('#a-q').value.trim().toUpperCase().replace(/\s+/g, ''), look = '';
+  var mnum = raw.match(/^(?:PS|BG|SR)?0*(\d{1,6})$/);
+  if (mnum && !rows.some(function(a){ return norm(a[0]).indexOf(norm(raw)) >= 0; }) && !mrows.length){
+    var num = mnum[1], links = [];
+    if (S.alarmCtl === 'sinumerik'){
+      if (+num >= 500000 && S.machine === 'chiron') links.push(['Opis alarmu ' + num + ' — maszyna Chiron', ALARM_LOOKUP.chiron(num)]);
+      else links.push(['Opis alarmu ' + num + ' — Sinumerik 840D', ALARM_LOOKUP.sinumerik(num)]);
+    } else if (+num < 10000){
+      links.push(['Opis alarmu PS' + ('0000' + num).slice(-4) + ' — Fanuc (seria 0i-D, numeracja jak w 31i)', ALARM_LOOKUP.fanuc(num)]);
+      links.push(['Cała lista alarmów Fanuc 0i-D', ALARM_LOOKUP.fanucList]);
+    }
+    look = '<li class="arow"><div class="ahead"><span class="acode">' + esc(num) + '</span><span class="aen">spoza listy w aplikacji</span></div>' +
+      links.map(function(l){ return '<a class="tlink" href="' + l[1] + '" target="_blank" rel="noopener">' + esc(l[0]) + ' (ang.)</a>'; }).join('') +
+      '<button type="button" class="tlink" data-askalarm="' + esc(num) + '">Zapytaj AI o ten alarm</button>' +
+      '<p class="fine">Indeks faultresolve.com (nieoficjalny). Porównaj z tekstem na ekranie maszyny.</p></li>';
+  }
+  $('#a-list').innerHTML = look + html || '<li class="arow"><p class="chk">Brak tego alarmu na liście. Sprawdź w diagnostyce sterowania (' + (S.alarmCtl === 'fanuc' ? 'HELP → ALARM' : 'Diagnostyka → Alarmy') + ') albo zapytaj AI.</p></li>';
 }
 $('#a-q').addEventListener('input', renderAlarms);
 

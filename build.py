@@ -11,7 +11,7 @@ def rd(name):
         return f.read()
 
 def fill(s):
-    return s.replace('/*{{CORE}}*/', rd('core.js')).replace('/*{{DATA}}*/', rd('data.js')).replace('/*{{CODES}}*/', rd('codes.js')).replace('/*{{UI}}*/', rd('ui.js')).replace('/*{{AI}}*/', rd('ai.js'))
+    return s.replace('/*{{CORE}}*/', rd('core.js')).replace('/*{{DATA}}*/', rd('data.js')).replace('/*{{CODES}}*/', rd('codes.js')).replace('/*{{UI}}*/', rd('ui.js')).replace('/*{{SIM}}*/', rd('simui.js')).replace('/*{{AI}}*/', rd('ai.js'))
 head = rd('head.html')
 body = fill(rd('body.html'))
 

@@ -10,8 +10,8 @@ const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map(m =
 scripts.forEach((s, i) => { try { new vm.Script(s, { filename: 'script' + i + '.js' }); } catch (e) { console.error('Błąd składni w skrypcie ' + i); throw e; } });
 
 const core = html.match(/<script id="core">([\s\S]*?)<\/script>/)[1];
-const ctx = {}; vm.createContext(ctx); vm.runInContext(core + '\nthis.calcCorrection = calcCorrection; this.processProgram = processProgram;', ctx);
-const { calcCorrection, processProgram } = ctx;
+const ctx = {}; vm.createContext(ctx); vm.runInContext(core + '\nthis.calcCorrection = calcCorrection; this.processProgram = processProgram; this.simulateProgram = simulateProgram; this.arcPoints = arcPoints;', ctx);
+const { calcCorrection, processProgram, simulateProgram, arcPoints } = ctx;
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, a + ' != ' + b);
 
 // Korekcja: otwór Ø20 H7 zmierzony 19.998 → celujemy w środek 20.0105 → ΔR −0.006
@@ -44,5 +44,21 @@ assert.ok(p.text.includes('C90.5') && p.text.includes(',C2.'), 'fazka ,C nie mo�
 assert.ok(p.warnings.some(w => w.key === 'rot'));
 p = processProgram('N10 TRAORI\nN20 G1 X10 A=20', { ctl: 'sinumerik', mode: 'replace', axis: 'A', oldVal: 20, newVal: 20.5 });
 assert.ok(p.text.includes('A=20.5'));
+
+// Symulacja: łuk G03 z R, środek po właściwej stronie
+let sim = simulateProgram('G90 G00 X20. Y0. Z5.\nG01 Z-5. F200\nG03 X0 Y20. R20.\nG00 Z50.', 'fanuc');
+let arc = sim.segs.find(s => s.type === 'arc');
+near(arc.c[0], 0); near(arc.c[1], 0);
+let mid = arcPoints(arc, 2)[1]; assert.ok(mid[0] > 13 && mid[1] > 13, 'łuk G03 przez I ćwiartkę');
+sim = simulateProgram('G00 X0 Y0\nG02 X10. Y0 I5. J0', 'fanuc'); arc = sim.segs[0]; near(arc.c[0], 5); assert.ok(arc.cw);
+// Cykl wiercenia Fanuc: dwa otwory
+sim = simulateProgram('G00 X0 Y0 Z10.\nG81 X10. Y10. Z-15. R2. F150\nX30.\nG80', 'fanuc');
+assert.strictEqual(sim.segs.filter(s => s.type === 'hole').length, 2);
+// Sinumerik: CR= i przyrostowo
+sim = simulateProgram('N10 G0 X0 Y0 Z2\nN20 G1 Z-3 F100\nN30 G91 X10\nN40 G90 G3 X10 Y10 CR=5', 'sinumerik');
+assert.strictEqual(sim.segs.length, 3); near(sim.segs[1].b[0], 10);
+// G28 nie jest rysowany
+sim = simulateProgram('G00 X5. Y5. Z5.\nG01 X10.\nG91 G28 Z0.\nG90', 'fanuc');
+assert.strictEqual(sim.segs.length, 1);
 
 console.log('OK — ' + scripts.length + ' skryptów, testy logiki przeszły');

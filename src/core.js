@@ -176,3 +176,151 @@ function processProgram(text, o){
     total: lines.length
   };
 }
+
+/* ===== Symulacja toru narzędzia (podgląd, bez kinematyki maszyny) =====
+   Zwraca odcinki (szybki / praca / łuk / otwór) i kroki z opisem po polsku dla każdej linii. */
+function simWords(code){
+  var out = [], re = /(^|[^A-Z_,])(CR|[GMTSFXYZIJKRABCD])\s*=?\s*([+-]?(?:\d+\.?\d*|\.\d+))/gi, m;
+  while ((m = re.exec(code))) out.push([m[2].toUpperCase(), parseFloat(m[3])]);
+  return out;
+}
+function fmtN(v){ var s = (Math.round(v * 1000) / 1000).toString(); return s === '-0' ? '0' : s; }
+function simulateProgram(text, ctl){
+  var lines = String(text || '').split(/\r?\n/);
+  var pos = {x:null, y:null, z:null}, abs = true, motion = 0, plane = 17, comp = 40, feed = null;
+  var cycF = null, cycZ = null, cycR = null, mcall = null;
+  var segs = [], steps = [], notes = {}, noteOrder = [];
+  function note(k, t){ if (!notes[k]){ notes[k] = t; noteOrder.push(k); } }
+  function pt(p){ return [p.x, p.y, p.z == null ? 0 : p.z]; }
+  function hole(ln, x, y, depth, top){
+    if (x == null || y == null) return;
+    segs.push({ln:ln, type:'hole', a:[x, y, top == null ? (pos.z == null ? 0 : pos.z) : top], b:[x, y, depth == null ? (pos.z == null ? 0 : pos.z) : depth]});
+  }
+  lines.forEach(function(line, idx){
+    var ln = idx + 1;
+    var code = segmentLine(line, ctl).filter(function(p){ return p.t === 'code'; }).map(function(p){ return p.s; }).join(' ').toUpperCase();
+    if (!code.trim()) return;
+    var w = simWords(code), g = [], ax = {}, I = null, J = null, R = null, T = null, Ms = [], hasF = false;
+    w.forEach(function(p){
+      var k = p[0], v = p[1];
+      if (k === 'G') g.push(v);
+      else if (k === 'X' || k === 'Y' || k === 'Z') ax[k.toLowerCase()] = v;
+      else if (k === 'I') I = v; else if (k === 'J') J = v;
+      else if (k === 'R' || k === 'CR') R = v;
+      else if (k === 'F'){ feed = v; hasF = true; }
+      else if (k === 'T') T = v;
+      else if (k === 'M') Ms.push(v);
+    });
+    var desc = [], moveGiven = ('x' in ax) || ('y' in ax) || ('z' in ax);
+    var machineCoords = g.some(function(v){ return v === 53 || v === 28 || v === 30; }) || /(^|[^A-Z_])(SUPA|G153|G74)(?![A-Z_\d])/.test(code);
+    if (/G\s*0*68\.2|G\s*0*68(?![\d.])|CYCLE800|TRAORI|G\s*0*43\.4|(^|[^A-Z_])(A?TRANS|A?ROT|A?MIRROR|A?SCALE)(?![A-Z_\d])|G\s*0*5[12](?![\d])/.test(code))
+      note('trans', 'Podgląd nie uwzględnia obrotu, przesunięcia, lustra ani pochylenia układu (G68, G68.2, G52, TRANS, ROT, CYCLE800, TCP) — tor jest rysowany w układzie programu.');
+    if (/M\s*0*98|M\s*0*99|(^|[^A-Z_])L\d+|CALL/.test(code)) note('sub', 'Podprogramy nie są rozwijane w podglądzie.');
+    g.forEach(function(v){
+      if (v === 90) abs = true; else if (v === 91) abs = false;
+      else if (v === 17 || v === 18 || v === 19) plane = v;
+      else if (v === 40 || v === 41 || v === 42){ comp = v; desc.push(v === 40 ? 'Wyłączenie korekcji promienia' : 'Włączenie korekcji promienia (frez po ' + (v === 41 ? 'lewej' : 'prawej') + ' stronie konturu)'); }
+      else if (v === 0 || v === 1 || v === 2 || v === 3){ motion = v; if (ctl === 'fanuc') cycF = null; }
+      else if (v === 80){ cycF = null; desc.push('Koniec cyklu wiercenia'); }
+      else if ([73, 74, 76, 81, 82, 83, 84, 85, 86, 87, 88, 89].indexOf(v) >= 0 && ctl === 'fanuc'){ cycF = v; }
+      else if (v === 43 && !machineCoords) desc.push('Korekcja długości narzędzia');
+    });
+    if (plane !== 17) note('plane', 'Łuki w płaszczyźnie G18/G19 są pokazane w przybliżeniu.');
+    if (T != null && Ms.indexOf(6) >= 0) desc.push('Zmiana narzędzia na T' + fmtN(T));
+    else if (T != null) desc.push('Wybór narzędzia T' + fmtN(T));
+    if (Ms.indexOf(3) >= 0) desc.push('Wrzeciono w prawo');
+    if (Ms.indexOf(4) >= 0) desc.push('Wrzeciono w lewo');
+    if (Ms.indexOf(5) >= 0) desc.push('Stop wrzeciona');
+    if (Ms.indexOf(8) >= 0) desc.push('Chłodziwo włączone');
+    if (Ms.indexOf(9) >= 0) desc.push('Chłodziwo wyłączone');
+    if (Ms.indexOf(30) >= 0 || Ms.indexOf(2) >= 0) desc.push('Koniec programu');
+    if (Ms.indexOf(0) >= 0 || Ms.indexOf(1) >= 0) desc.push('Zatrzymanie programu');
+
+    // Sinumerik: cykle wiercenia CYCLE8x(RTP, RFP, SDIS, DP, ...)
+    var sc = code.match(/(MCALL\s*)?CYCLE8([1-9])\s*\(([^)]*)\)/);
+    if (ctl === 'sinumerik' && /(^|[^A-Z_])MCALL\s*$/.test(code.trim())){ mcall = null; desc.push('Koniec wywołania modalnego cyklu'); }
+    if (ctl === 'sinumerik' && sc){
+      var pr = sc[3].split(',').map(function(s){ return parseFloat(s); });
+      var cyc = {rfp:isFinite(pr[1]) ? pr[1] : 0, dp:isFinite(pr[3]) ? pr[3] : null, name:'CYCLE8' + sc[2]};
+      if (sc[1]) mcall = cyc;
+      else { hole(ln, pos.x, pos.y, cyc.dp, cyc.rfp); desc.push('Wiercenie (' + cyc.name + ') w X' + fmtN(pos.x) + ' Y' + fmtN(pos.y) + (cyc.dp != null ? ' do Z' + fmtN(cyc.dp) : '')); }
+    }
+
+    if (machineCoords){
+      if (moveGiven) desc.push('Ruch w układzie maszyny / do punktu referencyjnego (nie rysowany)');
+      if (desc.length) steps.push({ln:ln, text:desc.join(' · '), seg:segs.length});
+      return;
+    }
+    if (ctl === 'fanuc' && cycF != null){
+      if ('z' in ax) cycZ = abs ? ax.z : (cycZ == null ? 0 : cycZ) + ax.z;
+      var rr = w.filter(function(p){ return p[0] === 'R'; })[0]; if (rr) cycR = rr[1];
+      if (('x' in ax) || ('y' in ax) || ('z' in ax)){
+        var nx = 'x' in ax ? (abs || pos.x == null ? ax.x : pos.x + ax.x) : pos.x, ny = 'y' in ax ? (abs || pos.y == null ? ax.y : pos.y + ax.y) : pos.y;
+        if (pos.z != null && pos.x != null && pos.y != null && (nx !== pos.x || ny !== pos.y)) segs.push({ln:ln, type:'rapid', a:pt(pos), b:[nx, ny, pos.z]});
+        pos.x = nx; pos.y = ny;
+        hole(ln, nx, ny, cycZ, cycR);
+        desc.push('Wiercenie (G' + fmtN(cycF) + ') w X' + fmtN(nx) + ' Y' + fmtN(ny) + (cycZ != null ? ' do Z' + fmtN(cycZ) : ''));
+      }
+      if (desc.length) steps.push({ln:ln, text:desc.join(' · '), seg:segs.length});
+      return;
+    }
+    if (moveGiven){
+      var a = {x:pos.x, y:pos.y, z:pos.z};
+      var b = {
+        x: 'x' in ax ? (abs || pos.x == null ? ax.x : pos.x + ax.x) : pos.x,
+        y: 'y' in ax ? (abs || pos.y == null ? ax.y : pos.y + ax.y) : pos.y,
+        z: 'z' in ax ? (abs || pos.z == null ? ax.z : pos.z + ax.z) : pos.z
+      };
+      if (a.z == null) a.z = b.z;
+      if (a.x == null || a.y == null || b.x == null || b.y == null){
+        // pozycja startowa nieznana — tylko zapamiętaj, nie rysuj
+        pos = b; desc.push('Pozycja startowa' + (('x' in ax) ? ' X' + fmtN(b.x) : '') + (('y' in ax) ? ' Y' + fmtN(b.y) : '') + (('z' in ax) ? ' Z' + fmtN(b.z) : ''));
+        steps.push({ln:ln, text:desc.join(' · '), seg:segs.length});
+        return;
+      }
+      var to = (('x' in ax) ? ' X' + fmtN(b.x) : '') + (('y' in ax) ? ' Y' + fmtN(b.y) : '') + (('z' in ax) ? ' Z' + fmtN(b.z) : '');
+      if (motion === 2 || motion === 3){
+        var cw = motion === 2, cx, cy, r;
+        if (I != null || J != null){ cx = a.x + (I || 0); cy = a.y + (J || 0); r = Math.hypot(a.x - cx, a.y - cy); }
+        else if (R != null){
+          r = Math.abs(R);
+          var dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
+          if (d < 1e-9 || d > 2 * r + 1e-6){ note('arc', 'Nie da się narysować łuku w linii ' + ln + ' — promień nie pasuje do punktów (alarm promienia na maszynie).'); cx = (a.x + b.x) / 2; cy = (a.y + b.y) / 2; r = d / 2; }
+          else {
+            var h = Math.sqrt(Math.max(0, r * r - d * d / 4)), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+            var sgn = (cw ? -1 : 1) * (R < 0 ? -1 : 1);
+            cx = mx - sgn * h * dy / d; cy = my + sgn * h * dx / d;
+          }
+        } else { note('arc0', 'Łuk bez R / I J w linii ' + ln + ' — pokazany jako prosta.'); cx = null; }
+        if (cx != null){
+          segs.push({ln:ln, type:'arc', a:pt(a), b:pt(b), c:[cx, cy], r:r, cw:cw});
+          desc.push('Łuk ' + (cw ? 'zgodnie' : 'przeciwnie') + ' z ruchem zegara do' + to + ', promień ' + fmtN(r));
+        } else { segs.push({ln:ln, type:'feed', a:pt(a), b:pt(b)}); desc.push('Ruch do' + to); }
+      } else if (motion === 1){
+        segs.push({ln:ln, type:'feed', a:pt(a), b:pt(b)});
+        desc.push('Skrawanie po prostej do' + to + (feed != null ? ', posuw F' + fmtN(feed) : ''));
+      } else {
+        segs.push({ln:ln, type:'rapid', a:pt(a), b:pt(b)});
+        desc.push('Ruch szybki do' + to);
+      }
+      pos = b;
+      if (ctl === 'sinumerik' && mcall && (('x' in ax) || ('y' in ax))){ hole(ln, pos.x, pos.y, mcall.dp, mcall.rfp); desc.push('Wiercenie (' + mcall.name + ')'); }
+    }
+    if (desc.length) steps.push({ln:ln, text:desc.join(' · '), seg:segs.length});
+  });
+  if (!abs) note('inc', 'Program kończy się w trybie przyrostowym G91 — sprawdź, czy tak ma być.');
+  return {segs:segs, steps:steps, notes:noteOrder.map(function(k){ return notes[k]; })};
+}
+function arcPoints(s, n){
+  var a0 = Math.atan2(s.a[1] - s.c[1], s.a[0] - s.c[0]), a1 = Math.atan2(s.b[1] - s.c[1], s.b[0] - s.c[0]);
+  var sweep = a1 - a0;
+  if (s.cw){ if (sweep >= -1e-9) sweep -= 2 * Math.PI; } else { if (sweep <= 1e-9) sweep += 2 * Math.PI; }
+  if (Math.abs(s.a[0] - s.b[0]) < 1e-9 && Math.abs(s.a[1] - s.b[1]) < 1e-9) sweep = s.cw ? -2 * Math.PI : 2 * Math.PI;
+  n = n || Math.max(8, Math.ceil(Math.abs(sweep) / (Math.PI / 36)));
+  var pts = [];
+  for (var i = 0; i <= n; i++){
+    var t = i / n, ang = a0 + sweep * t;
+    pts.push([s.c[0] + s.r * Math.cos(ang), s.c[1] + s.r * Math.sin(ang), s.a[2] + (s.b[2] - s.a[2]) * t]);
+  }
+  return pts;
+}
