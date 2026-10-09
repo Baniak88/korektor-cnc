@@ -185,7 +185,7 @@ function onControlChange(){
   $('#mpCtl').textContent = ctlName(S.machine) + (multiAx() ? ' · ' + (MACHINES[S.machine].fiveAxis ? '5X' : '4/5X') : '');
   renderAxes();
   renderKorekcja();
-  S.alarmCtl = ctl(); $('#a-title').textContent = 'Alarmy ' + (ctl() === 'fanuc' ? 'Fanuc' : 'Sinumerik') + ' · ' + MACHINES[S.machine].name; renderAlarms();
+  S.alarmCtl = ctl(); $('#a-title').textContent = 'Alarmy ' + (ctl() === 'fanuc' ? 'Fanuc' : 'Sinumerik') + ' · ' + MACHINES[S.machine].name + (MACHINE_ALARMS[S.machine] && MACHINE_ALARMS[S.machine].ctl === ctl() ? ' · z alarmami maszyny' : ''); renderAlarms();
   renderCodes();
   if (!S.gEdited){ $('#g-prog').value = sampleProg(); S.gFileName = ''; }
   $('#g-old').value = ctl() === 'fanuc' ? '-8.' : '-8';
@@ -584,11 +584,25 @@ function renderAlarms(){
   renderAlarmHelp();
   var q = norm($('#a-q').value.trim()), list = ALARMS[S.alarmCtl] || [];
   var rows = list.filter(function(a){ return !q || norm(a.join(' ')).indexOf(q) >= 0; });
-  $('#a-list').innerHTML = rows.map(function(a){
+  var html = rows.map(function(a){
     return '<li class="arow"><div class="ahead"><span class="acode">' + esc(a[0]) + '</span><span class="aen">' + esc(a[1]) + '</span></div>' +
       '<p>' + esc(a[2]) + '</p><p class="chk"><b>Sprawdź:</b> ' + esc(a[3]) + '</p>' +
       '<button type="button" class="tlink" data-askalarm="' + esc(a[0]) + '">Zapytaj AI o ten alarm</button></li>';
-  }).join('') || '<li class="arow"><p class="chk">Brak tego alarmu na liście. Sprawdź w diagnostyce sterowania (' + (S.alarmCtl === 'fanuc' ? 'MESSAGE / ALARM' : 'Diagnostyka → Alarmy') + ') albo zapytaj AI.</p></li>';
+  }).join('');
+  var M = MACHINE_ALARMS[S.machine], mrows = [];
+  if (M && M.ctl === S.alarmCtl){
+    mrows = M.list.filter(function(a){ return !q || norm(a[0] + ' ' + a[1]).indexOf(q) >= 0; });
+    if (mrows.length){
+      html += '<li class="agroup"><b>' + esc(M.title) + '</b><span>' + (q ? 'wyniki: ' + mrows.length : mrows.length + ' alarmów') + '</span></li>' +
+        mrows.map(function(a){
+          return '<li class="arow"><div class="ahead"><span class="acode">' + esc(a[0]) + '</span></div><p>' + esc(a[1]) + '</p>' +
+            '<div class="row" style="gap:16px"><a class="tlink" href="' + M.url + encodeURIComponent(a[0]) + '" target="_blank" rel="noopener">Przyczyna i kroki naprawy (ang.)</a>' +
+            '<button type="button" class="tlink" data-askalarm="' + esc(a[0]) + '">Zapytaj AI</button></div></li>';
+        }).join('') +
+        '<li class="arow"><p class="fine">' + esc(M.src) + '</p></li>';
+    }
+  }
+  $('#a-list').innerHTML = html || '<li class="arow"><p class="chk">Brak tego alarmu na liście. Sprawdź w diagnostyce sterowania (' + (S.alarmCtl === 'fanuc' ? 'HELP → ALARM' : 'Diagnostyka → Alarmy') + ') albo zapytaj AI.</p></li>';
 }
 $('#a-q').addEventListener('input', renderAlarms);
 

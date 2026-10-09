@@ -213,7 +213,8 @@ document.addEventListener('click', function(e){
   if (a){
     var code = a.getAttribute('data-askalarm'), row = null;
     (ALARMS[S.alarmCtl] || []).forEach(function(x){ if (x[0] === code) row = x; });
-    goAI('ask', 'Mam alarm ' + code + (row ? ' (' + row[1] + ')' : '') + '. Co mogło go spowodować i co sprawdzić krok po kroku? Szczegóły: ');
+    if (!row && MACHINE_ALARMS[S.machine]) MACHINE_ALARMS[S.machine].list.forEach(function(x){ if (x[0] === code) row = [x[0], x[1]]; });
+    goAI('ask', 'Mam alarm ' + code + (row ? ' (' + row[1] + ')' : '') + ' na ' + MACHINES[S.machine].name + '. Co mogło go spowodować i co sprawdzić krok po kroku? Szczegóły: ');
     $('#ai-q').focus();
     return;
   }
