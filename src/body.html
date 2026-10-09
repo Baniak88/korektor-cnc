@@ -231,7 +231,15 @@
 <section id="tab-ai" aria-labelledby="h-ai" hidden>
   <div class="sec-h">
     <h2 id="h-ai">Zapytaj AI</h2>
-    <p class="lead">Przygotuję zdjęcie i pytanie, a Ty wyślesz je do ChatGPT, Claude albo Gemini na swoim telefonie. Bez kluczy i dodatkowych opłat.</p>
+    <p class="lead" id="ai-lead">Przygotuję zdjęcie i pytanie, a Ty wyślesz je do ChatGPT, Claude albo Gemini na swoim telefonie.</p>
+  </div>
+
+  <div class="conn" id="ai-status" hidden></div>
+
+  <div class="conn claudecard" id="ai-claudecard" hidden>
+    <div class="connrow"><span class="connname">Odpowiedzi prosto w aplikacji</span></div>
+    <p class="fine">Otwórz Korektor w Claude i zaloguj się mailem do swojego konta Claude. AI odczyta zdjęcie i wstawi kod jednym przyciskiem.</p>
+    <a class="btn primary wide" id="ai-openClaude" href="#" target="_blank" rel="noopener">Otwórz w Claude</a>
   </div>
 
   <div class="group">
@@ -246,7 +254,7 @@
 
   <div class="stepgroup">
     <div class="step"><span class="no">2</span><h3 id="ai-s2">Zrób zdjęcie</h3><span class="opt" id="ai-s2opt"></span></div>
-    <div class="row">
+    <div class="row" id="ai-photoBtns">
       <span class="btn filebtn big-btn"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Aparat<input type="file" id="ai-cam" accept="image/*" capture="environment" aria-label="Zrób zdjęcie"></span>
       <span class="btn filebtn big-btn"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M4 16l5-5 4 4 2-2 5 5"/></svg>Z galerii<input type="file" id="ai-gal" accept="image/*" multiple aria-label="Wybierz zdjęcia z galerii"></span>
     </div>
@@ -260,31 +268,44 @@
     </div>
   </div>
 
-  <div class="stepgroup">
-    <div class="step"><span class="no">3</span><h3>Wyślij</h3></div>
-    <button type="button" class="btn primary wide xl" id="ai-share"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4"/></svg>Wyślij do aplikacji AI</button>
-    <p class="fine">Z listy wybierz <b>ChatGPT</b>, <b>Claude</b> albo <b>Gemini</b>. Tekst pytania jest też w schowku — jeśli aplikacja pokaże samo zdjęcie, przytrzymaj pole wpisywania i wybierz Wklej.</p>
-    <details class="more">
-      <summary>Nie masz aplikacji AI na telefonie?</summary>
-      <div class="group" style="padding-top:8px">
-        <p class="fine">Skopiuj tekst i otwórz stronę AI w przeglądarce. Zdjęcie dodasz tam przyciskiem załącznika.</p>
-        <button type="button" class="btn" id="ai-copy">Kopiuj tekst pytania</button>
-        <p class="fine">Otwórz: <a class="lnk" href="https://chatgpt.com/" target="_blank" rel="noopener">ChatGPT</a> · <a class="lnk" href="https://claude.ai/new" target="_blank" rel="noopener">Claude</a> · <a class="lnk" href="https://gemini.google.com/app" target="_blank" rel="noopener">Gemini</a></p>
-      </div>
-    </details>
-    <p class="note-warn">Zdjęcia i program trafią do wybranej aplikacji AI. Sprawdź, czy firma pozwala wysyłać programy i rysunki klientów.</p>
+  <!-- Tryb konta Claude: odpowiedź w aplikacji -->
+  <div class="stepgroup" id="ai-askbox" hidden>
+    <div class="step"><span class="no">3</span><h3>Zapytaj</h3></div>
+    <button type="button" class="btn primary wide xl" id="ai-ask"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-6 16-2-6z"/></svg>Zapytaj Claude</button>
+    <button type="button" class="btn danger wide" id="ai-stop" hidden>Zatrzymaj</button>
+    <div class="chat" id="ai-chat" aria-live="polite"></div>
+    <button type="button" class="tlink" id="ai-new" hidden>Nowa rozmowa</button>
+    <p class="note-warn">Zdjęcia i program trafią do Claude na Twoim koncie. Sprawdź, czy firma pozwala wysyłać programy i rysunki klientów.</p>
   </div>
 
-  <div class="stepgroup">
-    <div class="step"><span class="no">4</span><h3>Odpowiedź z kodem?</h3><span class="opt">nieobowiązkowe</span></div>
-    <p class="fine">Skopiuj odpowiedź z aplikacji AI i wklej tutaj — kod przeniosę do zakładki Program, gdzie go sprawdzisz i zmienisz.</p>
-    <label class="sr" for="ai-ans">Odpowiedź z aplikacji AI</label>
-    <textarea id="ai-ans" class="prog" rows="5" spellcheck="false" autocapitalize="off" wrap="off" placeholder="Wklej tutaj odpowiedź…"></textarea>
-    <div class="row">
-      <button type="button" class="btn" id="ai-paste">Wklej ze schowka</button>
-      <button type="button" class="btn primary" id="ai-insert" disabled>Wstaw kod do Programu</button>
+  <!-- Tryb udostępniania: aplikacje AI na telefonie -->
+  <div id="ai-sharebox">
+    <div class="stepgroup">
+      <div class="step"><span class="no">3</span><h3>Wyślij</h3></div>
+      <button type="button" class="btn primary wide xl" id="ai-share"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4"/></svg>Wyślij do aplikacji AI</button>
+      <p class="fine">Z listy wybierz <b>ChatGPT</b>, <b>Claude</b> albo <b>Gemini</b>. Tekst pytania jest też w schowku — jeśli aplikacja pokaże samo zdjęcie, przytrzymaj pole wpisywania i wybierz Wklej.</p>
+      <details class="more">
+        <summary>Nie masz aplikacji AI na telefonie?</summary>
+        <div class="group" style="padding-top:8px">
+          <p class="fine">Skopiuj tekst i otwórz stronę AI w przeglądarce. Zdjęcie dodasz tam przyciskiem załącznika.</p>
+          <button type="button" class="btn" id="ai-copy">Kopiuj tekst pytania</button>
+          <p class="fine">Otwórz: <a class="lnk" href="https://chatgpt.com/" target="_blank" rel="noopener">ChatGPT</a> · <a class="lnk" href="https://claude.ai/new" target="_blank" rel="noopener">Claude</a> · <a class="lnk" href="https://gemini.google.com/app" target="_blank" rel="noopener">Gemini</a></p>
+        </div>
+      </details>
+      <p class="note-warn">Zdjęcia i program trafią do wybranej aplikacji AI. Sprawdź, czy firma pozwala wysyłać programy i rysunki klientów.</p>
     </div>
-    <p class="fine" id="ai-ansInfo"></p>
+
+    <div class="stepgroup">
+      <div class="step"><span class="no">4</span><h3>Odpowiedź z kodem?</h3><span class="opt">nieobowiązkowe</span></div>
+      <p class="fine">Skopiuj odpowiedź z aplikacji AI i wklej tutaj — kod przeniosę do zakładki Program.</p>
+      <label class="sr" for="ai-ans">Odpowiedź z aplikacji AI</label>
+      <textarea id="ai-ans" class="prog" rows="5" spellcheck="false" autocapitalize="off" wrap="off" placeholder="Wklej tutaj odpowiedź…"></textarea>
+      <div class="row">
+        <button type="button" class="btn" id="ai-paste">Wklej ze schowka</button>
+        <button type="button" class="btn primary" id="ai-insert" disabled>Wstaw kod do Programu</button>
+      </div>
+      <p class="fine" id="ai-ansInfo"></p>
+    </div>
   </div>
 
   <p class="fine">AI może się mylić. Każdy program po zmianach sprawdź symulacją albo przejazdem na sucho.</p>

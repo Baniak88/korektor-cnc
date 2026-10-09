@@ -70,7 +70,7 @@ function addPhotos(files){
   list.slice(0, room).forEach(function(f){ AI.photos.push({file:f, url:URL.createObjectURL(f)}); });
   if (list.length > room) toast('Dodano ' + room + ' (maks. 6)');
   renderAI();
-  $('#ai-share').scrollIntoView({behavior:'smooth', block:'center'});
+  $(AI.sample ? '#ai-ask' : '#ai-share').scrollIntoView({behavior:'smooth', block:'center'});
 }
 ['#ai-cam', '#ai-gal'].forEach(function(id){ $(id).addEventListener('change', function(){ addPhotos(this.files); this.value = ''; }); });
 $('#ai-thumbs').addEventListener('click', function(e){
@@ -146,12 +146,12 @@ $('#ai-paste').addEventListener('click', function(){
     navigator.clipboard.readText().then(function(t){ $('#ai-ans').value = t; onAns(); }, function(){ toast('Przytrzymaj pole poniżej i wybierz Wklej'); $('#ai-ans').focus(); });
   } catch(e){ toast('Przytrzymaj pole i wybierz Wklej'); $('#ai-ans').focus(); }
 });
-$('#ai-insert').addEventListener('click', function(){
-  var code = extractCode($('#ai-ans').value); if (!code) return;
+function insertCode(code){
   S.gEdited = true; S.gFileName = ''; $('#g-prog').value = code; setRange(0, 0); onProgChange(true);
   showTab('gcode'); window.scrollTo(0, 0);
   toast(/\?/.test(code) ? 'Wstawiono. Sprawdź znaki „?” — to miejsca nieczytelne' : 'Wstawiono do zakładki Program');
-});
+}
+$('#ai-insert').addEventListener('click', function(){ var code = extractCode($('#ai-ans').value); if (code) insertCode(code); });
 
 /* ----- Wejścia z innych miejsc ----- */
 function goAI(act, q){
@@ -177,4 +177,115 @@ document.addEventListener('click', function(e){
 });
 $$('.tab[data-tab=ai]').forEach(function(b){ b.addEventListener('click', renderAI); });
 
+
+/* ===== Logowanie kontem Claude: strona otwarta w Claude pyta AI na koncie zalogowanej osoby ===== */
+var CLAUDE_URL = 'https://claude.ai/artifact/YVM71eUHrsapEhqtbPeTW3';
+AI.sample = null; AI.sampleImages = false; AI.chat = []; AI.busy = false; AI.ctrl = null;
+
+function setAIMode(){
+  var acc = !!AI.sample;
+  $('#ai-askbox').hidden = !acc;
+  $('#ai-sharebox').hidden = acc;
+  $('#ai-claudecard').hidden = acc || !IS_PWA;
+  $('#ai-openClaude').href = CLAUDE_URL;
+  $('#ai-status').hidden = !acc;
+  if (acc){
+    $('#ai-lead').textContent = 'Claude odpowie tutaj, na Twoim koncie Claude. Przy pierwszym pytaniu Claude poprosi o zgodę.';
+    $('#ai-status').innerHTML = '<div class="connrow"><span class="chip ok">Zalogowano</span><span class="connname">Twoje konto Claude</span></div>' +
+      (AI.sampleImages ? '' : '<p class="fine">W tym widoku nie można wysyłać zdjęć — wpisz pytanie albo dołącz program z zakładki Program.</p>');
+    $('#ai-photoBtns').hidden = !AI.sampleImages;
+  } else {
+    $('#ai-lead').textContent = 'Przygotuję zdjęcie i pytanie, a Ty wyślesz je do ChatGPT, Claude albo Gemini na swoim telefonie.';
+    $('#ai-photoBtns').hidden = false;
+  }
+}
+if (!IS_PWA && window.claude && typeof window.claude.use === 'function'){
+  window.claude.use('sample').then(function(s){
+    if (!s) return;
+    AI.sample = s;
+    return s.limits().then(function(l){ AI.sampleImages = !!(l && l.images); }, function(){});
+  }, function(){}).then(setAIMode);
+}
+
+function md(src){
+  var blocks = [];
+  src = String(src).replace(/```[\w+-]*[ \t]*\n?([\s\S]*?)```/g, function(m, code){ blocks.push(code.replace(/\n$/, '')); return '\n\u0000' + (blocks.length - 1) + '\u0000\n'; });
+  var open = src.indexOf('```');
+  if (open >= 0){ blocks.push(src.slice(open + 3).replace(/^[\w+-]*[ \t]*\n?/, '')); src = src.slice(0, open) + '\n\u0000' + (blocks.length - 1) + '\u0000\n'; }
+  function inl(s){ return s.replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>'); }
+  var out = '', list = null, para = [];
+  function flushP(){ if (para.length){ out += '<p>' + para.map(inl).join('<br>') + '</p>'; para = []; } }
+  function flushL(){ if (list){ out += '</' + list + '>'; list = null; } }
+  esc(src).split('\n').forEach(function(line){
+    var m;
+    if ((m = line.match(/^\u0000(\d+)\u0000$/))){ flushP(); flushL(); out += '<pre class="aicode">' + esc(blocks[+m[1]]) + '</pre>'; return; }
+    if (!line.trim()){ flushP(); flushL(); return; }
+    if ((m = line.match(/^#{1,4}\s+(.*)$/))){ flushP(); flushL(); out += '<h4>' + inl(m[1]) + '</h4>'; return; }
+    if ((m = line.match(/^\s*[-*•]\s+(.*)$/))){ flushP(); if (list !== 'ul'){ flushL(); out += '<ul>'; list = 'ul'; } out += '<li>' + inl(m[1]) + '</li>'; return; }
+    if ((m = line.match(/^\s*\d+[.)]\s+(.*)$/))){ flushP(); if (list !== 'ol'){ flushL(); out += '<ol>'; list = 'ol'; } out += '<li>' + inl(m[1]) + '</li>'; return; }
+    flushL(); para.push(line);
+  });
+  flushP(); flushL();
+  return {html:out, blocks:blocks};
+}
+
+var chatQueued = false;
+function drawChatSoon(){ if (chatQueued) return; chatQueued = true; requestAnimationFrame(function(){ chatQueued = false; drawChat(); }); }
+function drawChat(){
+  $('#ai-new').hidden = !AI.chat.length || AI.busy;
+  $('#ai-ask').hidden = AI.busy; $('#ai-stop').hidden = !AI.busy;
+  $('#ai-ask').lastChild.textContent = AI.chat.length ? 'Zapytaj ponownie' : 'Zapytaj Claude';
+  $('#ai-chat').innerHTML = AI.chat.map(function(t, i){
+    if (t.role === 'user'){
+      return '<div class="msg u">' + (t.urls.length ? '<div class="uimgs">' + t.urls.map(function(u){ return '<img src="' + u + '" alt="Wysłane zdjęcie">'; }).join('') + '</div>' : '') + esc(t.show) + '</div>';
+    }
+    if (t.pending && !t.content) return '<div class="msg a"><span class="thinking" aria-label="Claude myśli"><i></i><i></i><i></i></span></div>';
+    var r = md(t.content || '');
+    return '<div class="msg a' + (t.error ? ' err' : '') + '">' + r.html + (t.error ? '<p class="errline">' + esc(t.error) + '</p>' : '') +
+      (!t.pending && t.content ? '<div class="acts"><button type="button" class="btn" data-copy="' + i + '">Kopiuj</button>' +
+        (r.blocks.length ? '<button type="button" class="btn primary" data-insert="' + i + '">Wstaw kod do Programu</button>' : '') + '</div>' : '') + '</div>';
+  }).join('');
+}
+$('#ai-chat').addEventListener('click', function(e){
+  var c = e.target.closest('[data-copy]'), ins = e.target.closest('[data-insert]');
+  if (c) copyText(AI.chat[+c.getAttribute('data-copy')].content);
+  if (ins){ var code = extractCode(AI.chat[+ins.getAttribute('data-insert')].content); if (code) insertCode(code); }
+});
+
+var SAMPLE_ERR = {
+  not_granted:'Nie zezwolono na użycie Claude. Otwórz stronę ponownie i zezwól, gdy Claude zapyta.',
+  sampling_disabled:'Claude nie jest dostępny na tym koncie.', rate_limited:'Osiągnięto limit użycia konta. Spróbuj później.',
+  session_expired:'Zaloguj się ponownie do Claude.', image_rejected:'Zdjęcie odrzucone — za duże albo zły format. Spróbuj innego.',
+  images_unavailable:'W tym widoku nie można wysyłać zdjęć.', refused:'Claude nie odpowie na to pytanie. Spróbuj inaczej.',
+  prompt_too_large:'Za dużo tekstu naraz. Wyślij krótszy fragment programu.', empty_completion:'Brak odpowiedzi. Spróbuj inaczej sformułować pytanie.'
+};
+$('#ai-ask').addEventListener('click', function(){
+  if (AI.busy || !AI.sample || !validateAI()) return;
+  var q = $('#ai-q').value.trim() || 'Pomóż mi z tym, co jest na zdjęciu.';
+  var full = (AI.chat.length ? '' : aiContext() + '\n\n') + q;
+  if ($('#ai-incProg').checked && progText() && !$('#ai-progWrap').hidden) full += '\n\nProgram:\n```\n' + progText().slice(0, 60000) + '\n```';
+  var photos = AI.sampleImages ? AI.photos.slice() : [];
+  var history = AI.chat.filter(function(t){ return !(t.role === 'assistant' && (t.error || !t.content)); }).slice(-10)
+    .map(function(t){ return {role:t.role, content:t.content}; });
+  while (history.length && history[0].role !== 'user') history.shift();
+  var userTurn = {role:'user', show:AI_ACTS[AI.act].label || q, content:full, urls:photos.map(function(p){ return p.url; })};
+  if (AI.act === 'ask') userTurn.show = q;
+  var ans = {role:'assistant', content:'', pending:true};
+  AI.chat.push(userTurn, ans);
+  AI.photos = []; renderAI();
+  AI.busy = true; AI.ctrl = new AbortController(); drawChat();
+  setTimeout(function(){ var m = $$('#ai-chat .msg'); if (m.length) m[m.length - 1].scrollIntoView({behavior:'smooth', block:'center'}); }, 60);
+  var opts = {onText:function(u){ ans.content = u.text; drawChatSoon(); }, signal:AI.ctrl.signal, cache:false};
+  if (photos.length) opts.images = photos.map(function(p){ return p.file; });
+  AI.sample(history.concat([{role:'user', content:full}]), opts).then(function(r){ ans.content = r.text; }, function(e){
+    if (e && e.text) ans.content = e.text;
+    if (e && e.code === 'cancelled'){ if (!ans.content) ans.error = 'Zatrzymano.'; }
+    else { if (e && e.code === 'refused') ans.content = ''; ans.error = (e && SAMPLE_ERR[e.code]) || 'Nie udało się połączyć z Claude. Spróbuj ponownie.'; }
+  }).then(function(){ ans.pending = false; AI.busy = false; AI.ctrl = null; drawChat(); });
+});
+$('#ai-stop').addEventListener('click', function(){ if (AI.ctrl) AI.ctrl.abort(); });
+$('#ai-new').addEventListener('click', function(){ AI.chat = []; drawChat(); setAct(AI.act); });
+
+AI_ACTS.ocr.label = 'Odczytaj program ze zdjęcia'; AI_ACTS.check.label = 'Sprawdź program'; AI_ACTS.explain.label = 'Wyjaśnij program'; AI_ACTS.ask.label = '';
+setAIMode();
 setAct('ocr');

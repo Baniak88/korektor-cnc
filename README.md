@@ -4,7 +4,7 @@ Aplikacja na telefon dla operatora frezarek CNC (Chiron FZ12, Matsuura MX-330, Q
 
 - **Korekcja z pomiaru** — ile zmienić zużycie narzędzia (D/H, ΔR/ΔL), żeby wymiar wszedł w tolerancję, i gdzie to wpisać na sterowaniu.
 - **Program** — poszerzanie, przesuwanie i zamiana wymiarów w G-code z podglądem zmienionych linii i ostrzeżeniami.
-- **AI** — zdjęcie programu i gotowe pytanie wysyłasz przez menu Udostępnij do ChatGPT, Claude albo Gemini na telefonie (bez kluczy i opłat); odpowiedź z kodem wklejasz z powrotem do zakładki Program.
+- **AI** — w wersji otwartej w Claude (https://claude.ai/artifact/YVM71eUHrsapEhqtbPeTW3) każdy pyta AI na swoim koncie Claude: odczyt programu ze zdjęcia, sprawdzenie i wyjaśnienie, kod trafia do zakładki Program jednym przyciskiem. W zainstalowanej aplikacji zdjęcie i pytanie wysyłasz przez menu Udostępnij do ChatGPT, Claude albo Gemini.
 - **Start** — ekran „Co chcesz zrobić?” prowadzi do właściwego narzędzia.
 - **Wiedza** — kody G/M dla Fanuc i Sinumerik z przykładami, słowniczek pojęć i najczęstsze alarmy.
 
