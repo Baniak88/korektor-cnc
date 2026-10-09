@@ -10,13 +10,16 @@ PWA (aplikacja webowa instalowana na Androidzie) dla operatora frezarek CNC. Wł
 - `src/data.js` — `MACHINES`, `SAMPLES` (przykładowe programy), `ALARMS`.
 - `src/codes.js` — `CODES` (kody G/M z opisami) i `GLOSSARY` (słowniczek, linkowany przez `data-term="id"`).
 - `src/ui.js` — zakładki, korekcja, program, kody, alarmy, arkusze, pamięć `localStorage` (klucze z prefiksem `kcnc:`).
-- `src/ai.js` — zakładka AI bez kluczy API. Dwa tryby: (1) strona otwarta w Claude (artefakt https://claude.ai/artifact/YVM71eUHrsapEhqtbPeTW3) używa `claude.use("sample")` — każdy pyta AI na swoim zalogowanym koncie Claude, odpowiedź i kod pojawiają się w aplikacji; (2) zainstalowana aplikacja: składa pytanie z kontekstem maszyny (+ program), a zdjęcia i tekst przekazuje przez Web Share API (`navigator.share`) do aplikacji ChatGPT / Claude / Gemini; fallback: kopiowanie tekstu. Odpowiedź z kodem wkleja się z powrotem i trafia do zakładki Program.
+- `src/ai.js` — zakładka AI bez kluczy API. Dwa tryby: (1) strona otwarta w Claude (artefakt https://claude.ai/artifact/YVM71eUHrsapEhqtbPeTW3) używa `claude.use("sample")` — każdy pyta AI na swoim zalogowanym koncie Claude, odpowiedź i kod pojawiają się w aplikacji; (2) zainstalowana aplikacja: składa pytanie z kontekstem maszyny (+ program), a zdjęcia i tekst przekazuje przez Web Share API (`navigator.share`) do aplikacji ChatGPT / Claude / Gemini; fallback: kopiowanie tekstu. Odpowiedź wraca do aplikacji bez API: (a) po powrocie aplikacja sama czyta schowek (`navigator.clipboard.readText`, rozpoznaje nowy tekst po `kcnc:aiWait`), (b) Web Share Target w manifeście (`./?st=1&text=…`) — „Udostępnij → Korektor CNC” z aplikacji AI. Odpowiedź pokazuje się w karcie z przyciskiem „Wstaw kod do Programu”.
 - Zakładki: `start` (ekran „Co chcesz zrobić?” + wybór maszyny przy pierwszym uruchomieniu), `korekcja`, `gcode`, `ai`, `wiedza` (podwidoki kody / słowniczek / alarmy). Hash w adresie (`#alarmy`, `#kody`, `#slownik`, `#korekcja`…) otwiera właściwy widok.
 - `build.py` — składa `dist/korektor-cnc/` (index.html, manifest, service worker, ikony) oraz `artifact.html` (wersja do artefaktu Claude, bez doctype). Wersja cache service workera to hash treści — nie trzeba jej podbijać ręcznie.
 - Wersja w Claude (artefakt) nie aktualizuje się z GitHuba: po zmianach zbuduj `artifact.html` i opublikuj go narzędziem Artifact na ten sam URL (bez zmiany `capabilities` — artefakt ma `sample` z obrazami).
 - `.github/workflows/pages.yml` — build + testy + publikacja na GitHub Pages przy każdym pushu do `main`.
 
 ## Zasady
+
+- Wygląd w stylu iOS: szare tło grupowane, białe karty bez ramek, duże tytuły w zwykłej wielkości liter, systemowy niebieski, segmenty i przełączniki jak w iPhonie. Nie wracaj do wersalików i ramek.
+- Pokazuj tylko sterowanie aktywnej maszyny (Fanuc albo Sinumerik) — w kodach, przykładach i alarmach. Inne sterowanie widać po zmianie maszyny.
 
 - Po każdej zmianie: `python3 build.py && node tests/check.js`. Przy zmianie logiki w `core.js` dopisz test w `tests/check.js`.
 - Wszystkie teksty interfejsu po polsku. Wyjaśniaj pojęcia (dodaj wpis do `GLOSSARY` i przycisk `?` z `data-term`).

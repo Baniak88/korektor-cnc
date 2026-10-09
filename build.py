@@ -72,6 +72,7 @@ manifest = {
     "background_color": "#111416",
     "theme_color": "#1B5D8F",
     "categories": ["productivity", "utilities"],
+    "share_target": {"action": "./?st=1", "method": "GET", "params": {"title": "title", "text": "text", "url": "url"}},
     "icons": [
         {"src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
         {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},

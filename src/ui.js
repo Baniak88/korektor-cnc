@@ -185,7 +185,7 @@ function onControlChange(){
   $('#mpCtl').textContent = ctlName(S.machine) + (multiAx() ? ' · ' + (MACHINES[S.machine].fiveAxis ? '5X' : '4/5X') : '');
   renderAxes();
   renderKorekcja();
-  S.alarmCtl = ctl(); setPressed('#a-ctl', 'data-ctl', S.alarmCtl); renderAlarms();
+  S.alarmCtl = ctl(); $('#a-title').textContent = 'Alarmy ' + (ctl() === 'fanuc' ? 'Fanuc' : 'Sinumerik') + ' · ' + MACHINES[S.machine].name; renderAlarms();
   renderCodes();
   if (!S.gEdited){ $('#g-prog').value = sampleProg(); S.gFileName = ''; }
   $('#g-old').value = ctl() === 'fanuc' ? '-8.' : '-8';
@@ -542,20 +542,19 @@ $('#c-cats').addEventListener('click', function(e){
 });
 function codeRow(r, c){
   var term = r[9] ? findTerm(r[9]) : null;
-  var more = r[5] || r[6] || r[7] || r[8];
-  return '<li class="crow"><h3>' + esc(r[1]) + '</h3>' +
-    '<div class="pair"><div class="pc' + (c === 'fanuc' ? ' on' : '') + '"><span class="lab">Fanuc</span><code>' + esc(r[2]) + '</code></div>' +
-    '<div class="pc' + (c === 'sinumerik' ? ' on' : '') + '"><span class="lab">Sinumerik</span><code>' + esc(r[3]) + '</code></div></div>' +
+  var code = c === 'fanuc' ? r[2] : r[3], ex = c === 'fanuc' ? r[6] : r[7];
+  var more = r[5] || ex || r[8] || term;
+  return '<li class="crow"><div class="chead"><h3>' + esc(r[1]) + '</h3><code class="ccode">' + esc(code) + '</code></div>' +
     '<p class="what">' + esc(r[4]) + '</p>' +
-    (more ? '<details class="cmore"><summary>Więcej: kiedy i przykład</summary><div class="body">' +
+    (more ? '<details class="cmore"><summary>Kiedy i przykład</summary><div class="body">' +
       (r[5] ? '<p>' + esc(r[5]) + '</p>' : '') +
-      ((r[6] || r[7]) ? '<div class="exs"><div class="exb"><span class="lab">Przykład Fanuc</span><pre>' + esc(r[6]) + '</pre></div><div class="exb"><span class="lab">Przykład Sinumerik</span><pre>' + esc(r[7]) + '</pre></div></div>' : '') +
+      (ex ? '<div class="exb"><span class="lab">Przykład</span><pre>' + esc(ex) + '</pre></div>' : '') +
       (r[8] ? '<p class="cwarn"><b>Uwaga:</b> ' + esc(r[8]) + '</p>' : '') +
       (term ? '<button type="button" class="tlink" data-term="' + r[9] + '">Co to jest: ' + esc(term[1]) + '</button>' : '') +
       '</div></details>' : '') + '</li>';
 }
 function termRow(g){
-  return '<li class="grow"><h3>' + esc(g[1]) + '<span class="tag">pojęcie</span></h3><p>' + esc(g[2]) + '</p></li>';
+  return '<li class="grow"><h3>' + esc(g[1]) + '</h3><p>' + esc(g[2]) + '</p></li>';
 }
 function renderCodes(){
   var q = norm($('#c-q').value.trim()), c = ctl();
@@ -563,7 +562,7 @@ function renderCodes(){
   var codes = showCodes ? CODES.filter(function(r){ return (S.cat === 'all' || r[0] === S.cat) && (!q || norm(r.slice(1, 9).join(' ')).indexOf(q) >= 0); }) : [];
   var terms = showTerms ? GLOSSARY.filter(function(g){ return !q || norm(g[1] + ' ' + g[2]).indexOf(q) >= 0; }) : [];
   var n = codes.length + terms.length;
-  $('#c-count').textContent = S.cat === 'slownik' ? terms.length + ' pojęć' : n + (n === 1 ? ' wynik' : ' wyników');
+  $('#c-count').textContent = S.cat === 'slownik' ? terms.length + ' pojęć' : ('Sterowanie ' + (c === 'fanuc' ? 'Fanuc' : 'Sinumerik') + ' · wyniki: ' + n);
   $('#c-list').innerHTML = terms.map(termRow).join('') + codes.map(function(r){ return codeRow(r, c); }).join('') ||
     '<li class="crow"><p class="note">Nic nie znaleziono. Spróbuj numeru kodu, np. G83, albo słowa, np. „wiercenie”.</p></li>';
 }
@@ -578,10 +577,9 @@ function renderAlarms(){
     return '<li class="arow"><div class="ahead"><span class="acode">' + esc(a[0]) + '</span><span class="aen">' + esc(a[1]) + '</span></div>' +
       '<p>' + esc(a[2]) + '</p><p class="chk"><b>Sprawdź:</b> ' + esc(a[3]) + '</p>' +
       '<button type="button" class="tlink" data-askalarm="' + esc(a[0]) + '">Zapytaj AI o ten alarm</button></li>';
-  }).join('') || '<li class="arow"><p class="chk">Brak tego alarmu na liście. Sprawdź w diagnostyce sterowania (Fanuc: MESSAGE / ALARM, Sinumerik: Diagnostyka → Alarmy).</p></li>';
+  }).join('') || '<li class="arow"><p class="chk">Brak tego alarmu na liście. Sprawdź w diagnostyce sterowania (' + (S.alarmCtl === 'fanuc' ? 'MESSAGE / ALARM' : 'Diagnostyka → Alarmy') + ') albo zapytaj AI.</p></li>';
 }
 $('#a-q').addEventListener('input', renderAlarms);
-segClick('#a-ctl', 'data-ctl', function(v){ S.alarmCtl = v; setPressed('#a-ctl', 'data-ctl', v); renderAlarms(); });
 
 /* ===== Zakładki ===== */
 var TABS = ['start','korekcja','gcode','ai','wiedza'];

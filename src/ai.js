@@ -106,6 +106,7 @@ $('#ai-share').addEventListener('click', function(){
   }
   var text = buildText(longProg);
   copyQuiet(text);
+  store.set('aiWait', {sent:text, at:Date.now()});
   if (!navigator.share){
     toast('Tekst skopiowany. Otwórz aplikację AI i wklej' + (files.length ? ', zdjęcie dodaj ręcznie' : ''));
     return;
@@ -116,7 +117,7 @@ $('#ai-share').addEventListener('click', function(){
     else toast('Ten telefon nie przekaże zdjęć — dodaj je ręcznie w aplikacji AI');
   }
   navigator.share(data).then(function(){
-    toast('Wysłano. Odpowiedź z kodem możesz wkleić w kroku 4');
+    toast('Gdy AI odpowie: Kopiuj i wróć tutaj');
   }, function(e){
     if (e && e.name === 'AbortError') return;
     toast('Nie udało się otworzyć menu. Tekst jest w schowku — wklej go w aplikacji AI');
@@ -124,10 +125,11 @@ $('#ai-share').addEventListener('click', function(){
 });
 $('#ai-copy').addEventListener('click', function(){
   if (!validateAI()) return;
-  copyText(buildText(false));
+  var t = buildText(false); copyText(t);
+  store.set('aiWait', {sent:t, at:Date.now()});
 });
 
-/* ----- Odpowiedź z kodem ----- */
+/* ----- Odpowiedź wraca do aplikacji: schowek albo „Udostępnij → Korektor CNC” ----- */
 function extractCode(s){
   var blocks = [], m, re = /```[\w+-]*[ \t]*\n?([\s\S]*?)```/g;
   while ((m = re.exec(s))) blocks.push(m[1].replace(/\n$/, ''));
@@ -135,24 +137,70 @@ function extractCode(s){
   var lines = s.split(/\r?\n/).filter(function(l){ return /^\s*(N\d+|[GMTOSF]\d|[XYZIJKR][-+.\d]|%|;|\(|[A-Z_]{3,}\d*\s*\()/i.test(l); });
   return lines.length >= 3 ? lines.join('\n') : '';
 }
-function onAns(){
-  var code = extractCode($('#ai-ans').value);
-  $('#ai-insert').disabled = !code;
-  var n = code ? code.split('\n').length : 0;
-  $('#ai-ansInfo').textContent = !$('#ai-ans').value.trim() ? '' : code ? 'Znaleziono kod: ' + n + ' ' + plLines(n) + '.' : 'Nie widzę kodu w tej odpowiedzi.';
+function setAnswer(text, quiet){
+  text = String(text || '').trim();
+  if (!text) return;
+  AI.answer = text;
+  store.set('aiAnswer', {t:text, at:Date.now()});
+  store.set('aiWait', null);
+  renderAnswer();
+  if (!quiet){
+    toast('Odpowiedź z AI jest w aplikacji');
+    setTimeout(function(){ $('#ai-anscard').scrollIntoView({behavior:'smooth', block:'start'}); }, 80);
+  }
 }
-$('#ai-ans').addEventListener('input', onAns);
-$('#ai-paste').addEventListener('click', function(){
-  try {
-    navigator.clipboard.readText().then(function(t){ $('#ai-ans').value = t; onAns(); }, function(){ toast('Przytrzymaj pole poniżej i wybierz Wklej'); $('#ai-ans').focus(); });
-  } catch(e){ toast('Przytrzymaj pole i wybierz Wklej'); $('#ai-ans').focus(); }
-});
+function renderAnswer(){
+  var has = !!AI.answer;
+  $('#ai-anscard').hidden = !has;
+  $('#ai-wait').hidden = has;
+  if (!has) return;
+  $('#ai-ansBody').innerHTML = md(AI.answer).html;
+  var code = extractCode(AI.answer);
+  $('#ai-insert').hidden = !code;
+  if (code){ var n = code.split('\n').length; $('#ai-insert').lastChild.textContent = 'Wstaw kod do Programu (' + n + ' ' + plLines(n) + ')'; }
+}
+$('#ai-insert').addEventListener('click', function(){ var code = extractCode(AI.answer || ''); if (code) insertCode(code); });
+$('#ai-ansCopy').addEventListener('click', function(){ if (AI.answer) copyText(AI.answer); });
+$('#ai-ansClear').addEventListener('click', function(){ AI.answer = ''; store.set('aiAnswer', null); renderAnswer(); });
+function takeManual(){ var el = $('#ai-ans'), v = el.value; if (v.trim().length > 2){ setAnswer(v); el.value = ''; el.blur(); var d = el.closest('details'); if (d) d.open = false; } }
+$('#ai-ans').addEventListener('paste', function(){ setTimeout(takeManual, 50); });
+$('#ai-ans').addEventListener('change', takeManual);
+
+function looksNew(t){
+  var w = store.get('aiWait', null);
+  t = String(t || '').trim();
+  if (!t || t.length < 3) return false;
+  if (w && w.sent && t === String(w.sent).trim()) return false;
+  if (AI.answer && t === AI.answer) return false;
+  return true;
+}
+function readClipboard(fromTap){
+  if (!navigator.clipboard || !navigator.clipboard.readText){ if (fromTap) manualPaste(); return; }
+  navigator.clipboard.readText().then(function(t){
+    if (looksNew(t)) setAnswer(t);
+    else if (fromTap) toast('W schowku nie ma nowej odpowiedzi. W aplikacji AI przytrzymaj odpowiedź i wybierz Kopiuj');
+  }, function(){ if (fromTap) manualPaste(); });
+}
+function manualPaste(){
+  var d = $('#ai-ans').closest('details'); if (d) d.open = true;
+  $('#ai-ans').focus();
+  toast('Przytrzymaj pole i wybierz Wklej');
+}
+$('#ai-paste').addEventListener('click', function(){ readClipboard(true); });
+// Po powrocie z aplikacji AI: sprawdź schowek sam
+function onReturn(){
+  var w = store.get('aiWait', null);
+  if (!w || Date.now() - w.at > 3600000 || document.visibilityState !== 'visible') return;
+  setTimeout(function(){ if (document.hasFocus()) readClipboard(false); }, 350);
+}
+document.addEventListener('visibilitychange', onReturn);
+window.addEventListener('focus', onReturn);
+
 function insertCode(code){
   S.gEdited = true; S.gFileName = ''; $('#g-prog').value = code; setRange(0, 0); onProgChange(true);
   showTab('gcode'); window.scrollTo(0, 0);
   toast(/\?/.test(code) ? 'Wstawiono. Sprawdź znaki „?” — to miejsca nieczytelne' : 'Wstawiono do zakładki Program');
 }
-$('#ai-insert').addEventListener('click', function(){ var code = extractCode($('#ai-ans').value); if (code) insertCode(code); });
 
 /* ----- Wejścia z innych miejsc ----- */
 function goAI(act, q){
@@ -290,3 +338,17 @@ $('#ai-new').addEventListener('click', function(){ AI.chat = []; drawChat(); set
 AI_ACTS.ocr.label = 'Odczytaj program ze zdjęcia'; AI_ACTS.check.label = 'Sprawdź program'; AI_ACTS.explain.label = 'Wyjaśnij program'; AI_ACTS.ask.label = '';
 setAIMode();
 setAct('ocr');
+(function(){
+  var saved = store.get('aiAnswer', null);
+  if (saved && saved.t && Date.now() - saved.at < 12 * 3600000){ AI.answer = saved.t; }
+  renderAnswer();
+  // „Udostępnij → Korektor CNC” z aplikacji AI
+  var p = new URLSearchParams(location.search);
+  if (p.has('st')){
+    var t = [p.get('title'), p.get('text'), p.get('url')].filter(function(x){ return x && x.trim(); }).join('\n\n');
+    try { history.replaceState(null, '', location.pathname); } catch(e){}
+    if (t){ showTab('ai'); setAnswer(t); }
+  } else if (store.get('aiWait', null)){
+    onReturn();
+  }
+})();

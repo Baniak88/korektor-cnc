@@ -232,12 +232,6 @@
 
   <div class="conn" id="ai-status" hidden></div>
 
-  <div class="conn claudecard" id="ai-claudecard" hidden>
-    <div class="connrow"><span class="connname">Odpowiedzi prosto w aplikacji</span></div>
-    <p class="fine">Otwórz Korektor w Claude i zaloguj się mailem do swojego konta Claude. AI odczyta zdjęcie i wstawi kod jednym przyciskiem.</p>
-    <a class="btn primary wide" id="ai-openClaude" href="#" target="_blank" rel="noopener">Otwórz w Claude</a>
-  </div>
-
   <div class="group">
     <div class="step"><span class="no">1</span><h3>Co chcesz?</h3></div>
     <div class="aiacts" role="radiogroup" aria-label="Co chcesz zrobić" id="ai-acts">
@@ -292,17 +286,31 @@
     </div>
 
     <div class="stepgroup">
-      <div class="step"><span class="no">4</span><h3>Odpowiedź z kodem?</h3><span class="opt">nieobowiązkowe</span></div>
-      <p class="fine">Skopiuj odpowiedź z aplikacji AI i wklej tutaj — kod przeniosę do zakładki Program.</p>
-      <label class="sr" for="ai-ans">Odpowiedź z aplikacji AI</label>
-      <textarea id="ai-ans" class="prog" rows="5" spellcheck="false" autocapitalize="off" wrap="off" placeholder="Wklej tutaj odpowiedź…"></textarea>
-      <div class="row">
-        <button type="button" class="btn" id="ai-paste">Wklej ze schowka</button>
-        <button type="button" class="btn primary" id="ai-insert" disabled>Wstaw kod do Programu</button>
+      <div class="step"><span class="no">4</span><h3>Odpowiedź wraca tutaj</h3></div>
+      <div class="waitcard" id="ai-wait">
+        <ol class="waitsteps">
+          <li>W aplikacji AI przytrzymaj odpowiedź i wybierz <b>Kopiuj</b> — albo <b>Udostępnij → Korektor CNC</b>.</li>
+          <li>Wróć do Korektora. Odpowiedź pojawi się tutaj sama.</li>
+        </ol>
+        <button type="button" class="btn wide" id="ai-paste"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="4" width="10" height="4" rx="1"/><path d="M7 6H5v15h14V6h-2"/></svg>Wklej odpowiedź</button>
       </div>
-      <p class="fine" id="ai-ansInfo"></p>
+      <div class="anscard" id="ai-anscard" hidden>
+        <div class="anshead"><span class="lab">Odpowiedź AI</span><button type="button" class="btn ghost" id="ai-ansClear">Usuń</button></div>
+        <div id="ai-ansBody"></div>
+        <button type="button" class="btn primary wide" id="ai-insert" hidden>Wstaw kod do Programu</button>
+        <button type="button" class="btn wide" id="ai-ansCopy">Kopiuj odpowiedź</button>
+      </div>
+      <details class="more">
+        <summary>Wklej ręcznie</summary>
+        <div class="group" style="padding-top:8px">
+          <label class="sr" for="ai-ans">Odpowiedź z aplikacji AI</label>
+          <textarea id="ai-ans" class="aiq" rows="4" placeholder="Przytrzymaj tutaj i wybierz Wklej…"></textarea>
+        </div>
+      </details>
     </div>
   </div>
+
+  <p class="fine" id="ai-claudecard" hidden>Masz konto Claude? <a class="lnk" id="ai-openClaude" href="#" target="_blank" rel="noopener">Otwórz Korektor w Claude</a> — tam odpowiedź pojawia się od razu, bez kopiowania.</p>
 
   <p class="fine">AI może się mylić. Każdy program po zmianach sprawdź symulacją albo przejazdem na sucho.</p>
 </section>
@@ -329,10 +337,7 @@
 
   <div id="w-alarmy" class="wsub" hidden>
     <div class="searchbox">
-      <div class="seg" id="a-ctl">
-        <button type="button" data-ctl="fanuc" aria-pressed="false">Fanuc</button>
-        <button type="button" data-ctl="sinumerik" aria-pressed="true">Sinumerik</button>
-      </div>
+      <span class="count" id="a-title"></span>
       <input type="search" class="search" id="a-q" inputmode="search" placeholder="Numer z ekranu maszyny, np. 0041" aria-label="Szukaj alarmu">
     </div>
     <ul class="list" id="a-list"></ul>
