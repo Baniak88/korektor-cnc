@@ -139,7 +139,7 @@ document.addEventListener('click', function(e){
   var t = e.target.closest('[data-term]');
   if (t){ openTerm(t.getAttribute('data-term')); return; }
   var g = e.target.closest('[data-goto]');
-  if (g){ closeSheet(); S.cat = g.getAttribute('data-goto'); $('#c-q').value = ''; renderCats(); renderCodes(); showTab('kody'); window.scrollTo(0, 0); }
+  if (g){ closeSheet(); $('#c-q').value = ''; showTab(g.getAttribute('data-goto')); window.scrollTo(0, 0); }
 });
 function findTerm(id){ for (var i = 0; i < GLOSSARY.length; i++) if (GLOSSARY[i][0] === id) return GLOSSARY[i]; return null; }
 function openTerm(id){
@@ -172,6 +172,7 @@ $('#mlist').addEventListener('click', function(e){
 segClick('#ctlSeg', 'data-ctl', function(v){ S.ctlMap[S.machine] = v; store.set('ctlMap', S.ctlMap); onControlChange(); renderSheet(); });
 
 function onControlChange(){
+  if (typeof renderStart === 'function' && !$('#tab-start').hidden) renderStart();
   $('#mpName').textContent = MACHINES[S.machine].name;
   $('#mpCtl').textContent = ctlName(S.machine);
   renderKorekcja();
@@ -510,7 +511,7 @@ function runG(){
 /* ===== Kody i słowniczek ===== */
 function norm(s){ return String(s).toLowerCase().replace(/ł/g, 'l').normalize('NFD').replace(/[̀-ͯ]/g, ''); }
 function renderCats(){
-  var keys = ['all','slownik','R','U','K','C','P','5','M'];
+  var keys = ['all','R','U','K','C','P','5','M'];
   $('#c-cats').innerHTML = keys.map(function(k){
     return '<button type="button" class="cat" data-cat="' + k + '" aria-pressed="' + (k === S.cat) + '">' + (k === 'all' ? 'Wszystkie' : CAT_NAMES[k]) + '</button>';
   }).join('');
@@ -547,6 +548,7 @@ function renderCodes(){
     '<li class="crow"><p class="note">Nic nie znaleziono. Spróbuj numeru kodu, np. G83, albo słowa, np. „wiercenie”.</p></li>';
 }
 $('#c-q').addEventListener('input', function(){ if (S.cat !== 'all' && S.cat !== 'slownik' && this.value){ S.cat = 'all'; renderCats(); } renderCodes(); });
+function renderCatsVis(){ $('#c-cats').hidden = S.cat === 'slownik'; $('#c-q').placeholder = S.cat === 'slownik' ? 'Szukaj pojęcia: TCP, zużycie, G54…' : 'Szukaj: G41, TCP, wiercenie, zużycie…'; }
 
 /* ===== Alarmy ===== */
 function renderAlarms(){
@@ -562,15 +564,58 @@ $('#a-q').addEventListener('input', renderAlarms);
 segClick('#a-ctl', 'data-ctl', function(v){ S.alarmCtl = v; setPressed('#a-ctl', 'data-ctl', v); renderAlarms(); });
 
 /* ===== Zakładki ===== */
-var TABS = ['korekcja','gcode','ai','kody','alarmy'];
+var TABS = ['start','korekcja','gcode','ai','wiedza'];
+var SUBS = {kody:'kody', slownik:'slownik', alarmy:'alarmy'};
+function showWiedza(sub){
+  setPressed('#wSeg', 'data-w', sub);
+  $('#w-kody').hidden = sub === 'alarmy';
+  $('#w-alarmy').hidden = sub !== 'alarmy';
+  if (sub === 'slownik') S.cat = 'slownik';
+  else if (sub === 'kody' && S.cat === 'slownik') S.cat = 'all';
+  if (sub !== 'alarmy'){ renderCats(); renderCatsVis(); renderCodes(); }
+  store.set('wsub', sub);
+}
+segClick('#wSeg', 'data-w', function(v){ showWiedza(v); });
 function showTab(t){
-  if (TABS.indexOf(t) < 0) t = 'korekcja';
+  if (SUBS[t]){ showWiedza(SUBS[t]); t = 'wiedza'; }
+  if (TABS.indexOf(t) < 0) t = 'start';
   TABS.forEach(function(x){ $('#tab-' + x).hidden = x !== t; });
   $$('.tab').forEach(function(b){ b.setAttribute('aria-selected', String(b.getAttribute('data-tab') === t)); });
-  store.set('tab', t);
+  if (t === 'start') renderStart();
   updateStrip();
 }
 $$('.tab').forEach(function(b){ b.addEventListener('click', function(){ showTab(b.getAttribute('data-tab')); window.scrollTo(0, 0); }); });
+
+/* ===== Ekran Start ===== */
+function renderStart(){
+  var picked = store.get('machineSet', false);
+  $('#st-pick').hidden = picked;
+  $('#st-main').hidden = !picked;
+  if (!picked){
+    $('#st-machines').innerHTML = Object.keys(MACHINES).map(function(id){
+      var m = MACHINES[id];
+      return '<button type="button" class="mopt" data-pickm="' + id + '"><b>' + esc(m.name) + '</b><small>' + esc(m.type) + '</small><span class="ct">' + esc(ctlName(id)) + '</span></button>';
+    }).join('');
+    return;
+  }
+  var rec = S.log.slice(0, 3);
+  $('#st-recent').hidden = !rec.length;
+  $('#st-recentList').innerHTML = rec.map(function(e){
+    var d = new Date(e.t), ts = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+    var axl = e.c === 'fanuc' ? (e.ax === 'R' ? 'D' : 'H') : (e.ax === 'R' ? 'ΔR' : 'ΔL');
+    return '<li><span class="mono">' + ts + '</span><span>' + esc((MACHINES[e.m] ? MACHINES[e.m].short : '') + ' · ' + (e.tool || (KIND_UI[e.kind] ? KIND_UI[e.kind].short : ''))) + '</span><b class="mono">' + axl + ' ' + f3(e.delta, true) + '</b></li>';
+  }).join('');
+}
+$('#st-machines').addEventListener('click', function(e){
+  var b = e.target.closest('[data-pickm]'); if (!b) return;
+  S.machine = b.getAttribute('data-pickm'); store.set('machine', S.machine); store.set('machineSet', true);
+  onControlChange(); renderStart(); toast('Maszyna: ' + MACHINES[S.machine].name);
+});
+$('#st-tasks').addEventListener('click', function(e){
+  var b = e.target.closest('[data-go]'); if (!b) return;
+  showTab(b.getAttribute('data-go')); window.scrollTo(0, 0);
+});
+$('#st-help').addEventListener('click', function(){ openSheet('#help'); });
 
 /* ===== Start ===== */
 applyTheme();
@@ -581,5 +626,7 @@ showGFields();
 renderLog();
 onControlChange();
 var hash = (location.hash || '').replace('#', '');
-showTab(TABS.indexOf(hash) >= 0 ? hash : store.get('tab', 'korekcja'));
+if (!store.get('machineSet', false) && store.get('machine', null)) store.set('machineSet', true);
+showWiedza(store.get('wsub', 'kody'));
+showTab(hash || 'start');
 if (S.wake){ $('#wakeSw').checked = true; requestWake(); }

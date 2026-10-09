@@ -14,8 +14,37 @@
 
 <main class="wrap">
 
+<!-- START -->
+<section id="tab-start" aria-labelledby="h-start">
+  <div id="st-pick" class="group" hidden>
+    <div class="sec-h">
+      <h2 id="h-start-pick">Na jakiej maszynie pracujesz?</h2>
+      <p class="lead">Od tego zależą nazwy korekcji i składnia programu. Zmienisz to później przyciskiem u góry.</p>
+    </div>
+    <div class="mlist" id="st-machines"></div>
+  </div>
+
+  <div id="st-main" class="group">
+    <div class="sec-h">
+      <h2 id="h-start">Co chcesz zrobić?</h2>
+    </div>
+    <div class="tasks" id="st-tasks">
+      <button type="button" class="task" data-go="korekcja"><span class="ti"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></span><span class="tt"><b>Wymiar poza tolerancją</b><small>Policzę, o ile zmienić zużycie narzędzia</small></span><span class="chev" aria-hidden="true">›</span></button>
+      <button type="button" class="task" data-go="gcode"><span class="ti"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5L3 12l5 7"/><path d="M16 5l5 7-5 7"/><path d="M13.5 4l-3 16"/></svg></span><span class="tt"><b>Zmienić wymiar w programie</b><small>Poszerz, przesuń albo zamień wartości</small></span><span class="chev" aria-hidden="true">›</span></button>
+      <button type="button" class="task" data-go="ai"><span class="ti"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span><span class="tt"><b>Zdjęcie programu do AI</b><small>Odczyt, sprawdzenie, wyjaśnienie — ChatGPT, Claude, Gemini</small></span><span class="chev" aria-hidden="true">›</span></button>
+      <button type="button" class="task" data-go="alarmy"><span class="ti"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3L2 20h20z"/><path d="M12 10v4M12 17v.5"/></svg></span><span class="tt"><b>Alarm na maszynie</b><small>Co znaczy i co sprawdzić najpierw</small></span><span class="chev" aria-hidden="true">›</span></button>
+      <button type="button" class="task" data-go="kody"><span class="ti"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg></span><span class="tt"><b>Co znaczy kod albo pojęcie?</b><small>G41, G83, TCP, zużycie i inne — z przykładami</small></span><span class="chev" aria-hidden="true">›</span></button>
+    </div>
+    <div class="group" id="st-recent" hidden>
+      <span class="lab">Ostatnie korekty</span>
+      <ul class="recent" id="st-recentList"></ul>
+    </div>
+    <button type="button" class="tlink" id="st-help">Jak korzystać z aplikacji</button>
+  </div>
+</section>
+
 <!-- KOREKCJA -->
-<section id="tab-korekcja" aria-labelledby="h-kor">
+<section id="tab-korekcja" aria-labelledby="h-kor" hidden>
   <div class="sec-h">
     <h2 id="h-kor">Korekcja z pomiaru</h2>
     <p class="lead">Policzy, o ile zmienić zużycie narzędzia, żeby wymiar wszedł w tolerancję.</p>
@@ -201,76 +230,97 @@
 <!-- ASYSTENT AI -->
 <section id="tab-ai" aria-labelledby="h-ai" hidden>
   <div class="sec-h">
-    <h2 id="h-ai">Asystent AI</h2>
-    <p class="lead">Zadaj pytanie albo zrób zdjęcie programu. Asystent zna wybraną maszynę i może przeczytać program z zakładki Program.</p>
+    <h2 id="h-ai">Zapytaj AI</h2>
+    <p class="lead">Przygotuję zdjęcie i pytanie, a Ty wyślesz je do ChatGPT, Claude albo Gemini na swoim telefonie. Bez kluczy i dodatkowych opłat.</p>
   </div>
 
-  <div class="conn" id="ai-conn"></div>
-
-  <div class="tipcard warnc" id="ai-privacy" hidden>
-    <p><b>Zanim wyślesz programy klientów:</b> zdjęcia i treść programu trafiają do wybranej usługi AI. Sprawdź, czy firma na to pozwala, szczególnie przy rysunkach i programach lotniczych.</p>
-    <button type="button" class="btn primary" id="ai-privOk">Rozumiem</button>
-  </div>
-
-  <div class="group" id="ai-work">
-    <p class="fine" id="ai-hint">Połącz AI powyżej, żeby zadawać pytania.</p>
-    <div class="aiacts" id="ai-acts">
-      <button type="button" class="aiact" data-act="ocr"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg><span>Odczytaj program ze zdjęcia</span></button>
-      <button type="button" class="aiact" data-act="check"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 12l2 2 4-4"/><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/></svg><span>Sprawdź program</span></button>
-      <button type="button" class="aiact" data-act="explain"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg><span>Wyjaśnij program</span></button>
-      <button type="button" class="aiact" data-act="korekta"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg><span>Wyjaśnij moją korektę</span></button>
+  <div class="group">
+    <div class="step"><span class="no">1</span><h3>Co chcesz?</h3></div>
+    <div class="aiacts" role="radiogroup" aria-label="Co chcesz zrobić" id="ai-acts">
+      <button type="button" class="aiact" role="radio" aria-checked="true" data-act="ocr"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg><span>Odczytaj program ze zdjęcia</span></button>
+      <button type="button" class="aiact" role="radio" aria-checked="false" data-act="check"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 12l2 2 4-4"/><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/></svg><span>Sprawdź program</span></button>
+      <button type="button" class="aiact" role="radio" aria-checked="false" data-act="explain"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg><span>Wyjaśnij program</span></button>
+      <button type="button" class="aiact" role="radio" aria-checked="false" data-act="ask"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/><path d="M10 9a2 2 0 1 1 2.5 1.9c-.4.2-.5.5-.5.9v.4M12 14v.2"/></svg><span>Alarm albo inne pytanie</span></button>
     </div>
+  </div>
 
-    <div class="chat" id="ai-chat" aria-live="polite"></div>
+  <div class="stepgroup">
+    <div class="step"><span class="no">2</span><h3 id="ai-s2">Zrób zdjęcie</h3><span class="opt" id="ai-s2opt"></span></div>
+    <div class="row">
+      <span class="btn filebtn big-btn"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Aparat<input type="file" id="ai-cam" accept="image/*" capture="environment" aria-label="Zrób zdjęcie"></span>
+      <span class="btn filebtn big-btn"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M4 16l5-5 4 4 2-2 5 5"/></svg>Z galerii<input type="file" id="ai-gal" accept="image/*" multiple aria-label="Wybierz zdjęcia z galerii"></span>
+    </div>
+    <div class="thumbs" id="ai-thumbs"></div>
+    <p class="fine" id="ai-photoTip">Zdjęcie z bliska, ekran na wprost, najlepiej do 40 linii na jedno zdjęcie.</p>
+    <label class="check" id="ai-progWrap"><input type="checkbox" id="ai-incProg"><span>Dołącz program z zakładki Program <small id="ai-progInfo"></small></span></label>
+    <div class="field">
+      <label class="lab" for="ai-q">Pytanie</label>
+      <textarea id="ai-q" class="aiq" rows="4"></textarea>
+      <span class="hint">Możesz je zmienić. Nazwę maszyny i sterowanie dopiszę sam.</span>
+    </div>
+  </div>
 
-    <div class="composer">
-      <div class="thumbs" id="ai-thumbs"></div>
-      <label class="sr" for="ai-q">Pytanie do asystenta</label>
-      <textarea id="ai-q" rows="3" placeholder="Np. Dlaczego mam alarm 0041 przy wejściu na kontur?"></textarea>
-      <label class="check" id="ai-progWrap"><input type="checkbox" id="ai-incProg"><span>Dołącz program z zakładki Program <small id="ai-progInfo"></small></span></label>
-      <div class="row">
-        <span id="ai-photos" class="row" style="flex:1 1 auto">
-          <span class="btn filebtn"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Aparat<input type="file" id="ai-cam" accept="image/*" capture="environment" aria-label="Zrób zdjęcie"></span>
-          <span class="btn filebtn"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M4 16l5-5 4 4 2-2 5 5"/></svg>Galeria<input type="file" id="ai-gal" accept="image/*" multiple aria-label="Wybierz zdjęcia z galerii"></span>
-        </span>
-        <button type="button" class="btn primary" id="ai-send">Wyślij</button>
-        <button type="button" class="btn danger" id="ai-stop" hidden>Stop</button>
+  <div class="stepgroup">
+    <div class="step"><span class="no">3</span><h3>Wyślij</h3></div>
+    <button type="button" class="btn primary wide xl" id="ai-share"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4"/></svg>Wyślij do aplikacji AI</button>
+    <p class="fine">Z listy wybierz <b>ChatGPT</b>, <b>Claude</b> albo <b>Gemini</b>. Tekst pytania jest też w schowku — jeśli aplikacja pokaże samo zdjęcie, przytrzymaj pole wpisywania i wybierz Wklej.</p>
+    <details class="more">
+      <summary>Nie masz aplikacji AI na telefonie?</summary>
+      <div class="group" style="padding-top:8px">
+        <p class="fine">Skopiuj tekst i otwórz stronę AI w przeglądarce. Zdjęcie dodasz tam przyciskiem załącznika.</p>
+        <button type="button" class="btn" id="ai-copy">Kopiuj tekst pytania</button>
+        <p class="fine">Otwórz: <a class="lnk" href="https://chatgpt.com/" target="_blank" rel="noopener">ChatGPT</a> · <a class="lnk" href="https://claude.ai/new" target="_blank" rel="noopener">Claude</a> · <a class="lnk" href="https://gemini.google.com/app" target="_blank" rel="noopener">Gemini</a></p>
       </div>
-      <button type="button" class="tlink" id="ai-new" hidden>Nowa rozmowa</button>
-    </div>
-    <p class="fine">Zdjęcie z bliska, ekran na wprost, do ok. 40 linii na zdjęcie — wtedy odczyt jest najdokładniejszy. AI może się mylić: każdy program po zmianach sprawdź symulacją albo przejazdem na sucho.</p>
+    </details>
+    <p class="note-warn">Zdjęcia i program trafią do wybranej aplikacji AI. Sprawdź, czy firma pozwala wysyłać programy i rysunki klientów.</p>
   </div>
+
+  <div class="stepgroup">
+    <div class="step"><span class="no">4</span><h3>Odpowiedź z kodem?</h3><span class="opt">nieobowiązkowe</span></div>
+    <p class="fine">Skopiuj odpowiedź z aplikacji AI i wklej tutaj — kod przeniosę do zakładki Program, gdzie go sprawdzisz i zmienisz.</p>
+    <label class="sr" for="ai-ans">Odpowiedź z aplikacji AI</label>
+    <textarea id="ai-ans" class="prog" rows="5" spellcheck="false" autocapitalize="off" wrap="off" placeholder="Wklej tutaj odpowiedź…"></textarea>
+    <div class="row">
+      <button type="button" class="btn" id="ai-paste">Wklej ze schowka</button>
+      <button type="button" class="btn primary" id="ai-insert" disabled>Wstaw kod do Programu</button>
+    </div>
+    <p class="fine" id="ai-ansInfo"></p>
+  </div>
+
+  <p class="fine">AI może się mylić. Każdy program po zmianach sprawdź symulacją albo przejazdem na sucho.</p>
 </section>
 
-<!-- KODY -->
-<section id="tab-kody" aria-labelledby="h-kody" hidden>
+<!-- WIEDZA: kody, słowniczek, alarmy -->
+<section id="tab-wiedza" aria-labelledby="h-w" hidden>
   <div class="sec-h">
-    <h2 id="h-kody">Kody i pojęcia</h2>
-    <p class="lead">Przy każdym kodzie jest krótki opis. „Więcej” pokazuje, kiedy go używać, i przykład. Pojęcia, np. TCP, wyjaśnia Słowniczek.</p>
+    <h2 id="h-w">Wiedza</h2>
   </div>
-  <div class="searchbox">
-    <input type="search" class="search" id="c-q" placeholder="Szukaj: G41, TCP, wiercenie, zużycie…" aria-label="Szukaj kodu lub pojęcia">
-    <div class="cats" id="c-cats"></div>
+  <div class="seg" id="wSeg">
+    <button type="button" data-w="kody" aria-pressed="true">Kody G/M</button>
+    <button type="button" data-w="slownik" aria-pressed="false">Słowniczek</button>
+    <button type="button" data-w="alarmy" aria-pressed="false">Alarmy</button>
   </div>
-  <span class="count" id="c-count"></span>
-  <ul class="list" id="c-list"></ul>
-</section>
 
-<!-- ALARMY -->
-<section id="tab-alarmy" aria-labelledby="h-al" hidden>
-  <div class="sec-h">
-    <h2 id="h-al">Alarmy</h2>
-    <p class="lead">Wpisz numer z ekranu maszyny. Zobaczysz, co oznacza alarm i co sprawdzić najpierw.</p>
-  </div>
-  <div class="searchbox">
-    <div class="seg" id="a-ctl">
-      <button type="button" data-ctl="fanuc" aria-pressed="false">Fanuc</button>
-      <button type="button" data-ctl="sinumerik" aria-pressed="true">Sinumerik</button>
+  <div id="w-kody" class="wsub">
+    <div class="searchbox">
+      <input type="search" class="search" id="c-q" placeholder="Szukaj: G41, TCP, wiercenie, zużycie…" aria-label="Szukaj kodu lub pojęcia">
+      <div class="cats" id="c-cats"></div>
     </div>
-    <input type="search" class="search" id="a-q" inputmode="search" placeholder="Numer lub słowo: 0041, krańcówka, posuw…" aria-label="Szukaj alarmu">
+    <span class="count" id="c-count"></span>
+    <ul class="list" id="c-list"></ul>
   </div>
-  <ul class="list" id="a-list"></ul>
-  <p class="fine">Opisy skrócone. Pełny tekst i przyczynę pokazuje diagnostyka sterowania i dokumentacja producenta. Numery Fanuc dla serii 0i-F / 31i-B.</p>
+
+  <div id="w-alarmy" class="wsub" hidden>
+    <div class="searchbox">
+      <div class="seg" id="a-ctl">
+        <button type="button" data-ctl="fanuc" aria-pressed="false">Fanuc</button>
+        <button type="button" data-ctl="sinumerik" aria-pressed="true">Sinumerik</button>
+      </div>
+      <input type="search" class="search" id="a-q" inputmode="search" placeholder="Numer z ekranu maszyny, np. 0041" aria-label="Szukaj alarmu">
+    </div>
+    <ul class="list" id="a-list"></ul>
+    <p class="fine">Opisy skrócone. Pełny tekst i przyczynę pokazuje diagnostyka sterowania i dokumentacja producenta. Numery Fanuc dla serii 0i-F / 31i-B.</p>
+  </div>
 </section>
 
 </main>
@@ -285,16 +335,16 @@
 
 <nav class="tabbar" aria-label="Zakładki">
   <div class="in" role="tablist">
-    <button class="tab" role="tab" data-tab="korekcja" aria-selected="true">
+    <button class="tab" role="tab" data-tab="start" aria-selected="true">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7"/><path d="M6 10v10h12V10"/><path d="M10 20v-6h4v6"/></svg>Start</button>
+    <button class="tab" role="tab" data-tab="korekcja" aria-selected="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>Korekcja</button>
     <button class="tab" role="tab" data-tab="gcode" aria-selected="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5L3 12l5 7"/><path d="M16 5l5 7-5 7"/><path d="M13.5 4l-3 16"/></svg>Program</button>
     <button class="tab" role="tab" data-tab="ai" aria-selected="false">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/><path d="M12 7.5l.9 1.8 1.8.9-1.8.9-.9 1.8-.9-1.8-1.8-.9 1.8-.9z"/></svg>Asystent</button>
-    <button class="tab" role="tab" data-tab="kody" aria-selected="false">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>Kody</button>
-    <button class="tab" role="tab" data-tab="alarmy" aria-selected="false">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3L2 20h20z"/><path d="M12 10v4M12 17v.5"/></svg>Alarmy</button>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/><path d="M12 7.5l.9 1.8 1.8.9-1.8.9-.9 1.8-.9-1.8-1.8-.9 1.8-.9z"/></svg>AI</button>
+    <button class="tab" role="tab" data-tab="wiedza" aria-selected="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5C6.5 4 9.5 4 12 6c2.5-2 5.5-2 8-.5V19c-2.5-1.5-5.5-1.5-8 .5-2.5-2-5.5-2-8-.5z"/><path d="M12 6v13.5"/></svg>Wiedza</button>
   </div>
 </nav>
 
@@ -335,6 +385,8 @@
     <div class="handle"></div>
     <div class="sheet-h"><h2 id="helpH">Jak korzystać</h2><button type="button" class="btn ghost" data-close>Zamknij</button></div>
     <div class="guide">
+      <h3>Start</h3>
+      <p>Ekran Start pyta, co chcesz zrobić, i prowadzi do właściwej zakładki.</p>
       <h3>Korekcja</h3>
       <ol>
         <li>Wybierz, co mierzysz: czop, otwór, ściankę, głębokość albo wysokość.</li>
@@ -349,9 +401,14 @@
         <li>Wybierz, co zmienić. Pod każdą opcją jest przykład.</li>
         <li>Sprawdź zmienione linie i ostrzeżenia, potem skopiuj program.</li>
       </ol>
-      <h3>Asystent AI</h3>
-      <p>Każdy łączy własne AI: w zainstalowanej aplikacji wpisujesz swój klucz Claude, ChatGPT albo Gemini; na stronie otwartej w Claude działa Twoje konto Claude. Zdjęcie programu zamienisz na tekst przyciskiem „Odczytaj program ze zdjęcia”.</p>
-      <h3>Kody i alarmy</h3>
+      <h3>AI</h3>
+      <ol>
+        <li>Wybierz, co chcesz: odczyt programu ze zdjęcia, sprawdzenie, wyjaśnienie albo pytanie.</li>
+        <li>Zrób zdjęcie. Pytanie jest już przygotowane.</li>
+        <li>„Wyślij do aplikacji AI” i wybierz ChatGPT, Claude albo Gemini.</li>
+        <li>Odpowiedź z kodem wklej w kroku 4 — trafi do zakładki Program.</li>
+      </ol>
+      <h3>Wiedza</h3>
       <p>Wpisz numer kodu, alarmu albo zwykłe słowo, np. „wiercenie”. „Więcej” przy kodzie pokazuje przykład dla Fanuc i Sinumerik.</p>
       <h3>Przycisk <span class="qi">?</span></h3>
       <p>Przy polach i pojęciach otwiera krótkie wyjaśnienie.</p>

@@ -10,7 +10,8 @@ PWA (aplikacja webowa instalowana na Androidzie) dla operatora frezarek CNC. Wł
 - `src/data.js` — `MACHINES`, `SAMPLES` (przykładowe programy), `ALARMS`.
 - `src/codes.js` — `CODES` (kody G/M z opisami) i `GLOSSARY` (słowniczek, linkowany przez `data-term="id"`).
 - `src/ui.js` — zakładki, korekcja, program, kody, alarmy, arkusze, pamięć `localStorage` (klucze z prefiksem `kcnc:`).
-- `src/ai.js` — asystent AI: własny klucz (Anthropic / OpenAI / Gemini, wywołania z przeglądarki ze streamingiem SSE) albo `claude.use("sample")`, gdy strona działa jako artefakt w Claude.
+- `src/ai.js` — zakładka AI bez kluczy API: składa pytanie z kontekstem maszyny (+ program), a zdjęcia i tekst przekazuje przez Web Share API (`navigator.share`) do aplikacji ChatGPT / Claude / Gemini; fallback: kopiowanie tekstu. Odpowiedź z kodem wkleja się z powrotem i trafia do zakładki Program.
+- Zakładki: `start` (ekran „Co chcesz zrobić?” + wybór maszyny przy pierwszym uruchomieniu), `korekcja`, `gcode`, `ai`, `wiedza` (podwidoki kody / słowniczek / alarmy). Hash w adresie (`#alarmy`, `#kody`, `#slownik`, `#korekcja`…) otwiera właściwy widok.
 - `build.py` — składa `dist/korektor-cnc/` (index.html, manifest, service worker, ikony) oraz `artifact.html` (wersja do artefaktu Claude, bez doctype). Wersja cache service workera to hash treści — nie trzeba jej podbijać ręcznie.
 - `.github/workflows/pages.yml` — build + testy + publikacja na GitHub Pages przy każdym pushu do `main`.
 
@@ -20,7 +21,7 @@ PWA (aplikacja webowa instalowana na Androidzie) dla operatora frezarek CNC. Wł
 - Wszystkie teksty interfejsu po polsku. Wyjaśniaj pojęcia (dodaj wpis do `GLOSSARY` i przycisk `?` z `data-term`).
 - Kolory tylko przez tokeny CSS, z wartościami dla obu motywów. Bez emoji w interfejsie.
 - Strona musi działać przy szerokości ok. 400 px bez przewijania w bok.
-- Kod nie może zależeć od zewnętrznych bibliotek ani serwera. Dane użytkownika i klucze AI zostają w `localStorage` na telefonie — nigdy nie wpisuj kluczy do repozytorium.
+- Kod nie może zależeć od zewnętrznych bibliotek ani serwera. Dane użytkownika zostają w `localStorage` na telefonie. Nie dodawaj integracji wymagających kluczy API ani serwera — właściciel świadomie wybrał udostępnianie do aplikacji AI.
 - Bezpieczeństwo obróbki: nie usuwaj ostrzeżeń (łuki po zmianie, G91, G28/G53, cykle) ani przypomnień o symulacji / przejeździe na sucho. Asystent AI nigdy nie może twierdzić, że program jest bezpieczny.
 - Numery i opisy alarmów oraz składnię kodów sprawdzaj w dokumentacji; jeśli nie masz pewności, napisz to w opisie zmiany zamiast zgadywać.
 - Commituj po polsku, krótko, w trybie rozkazującym (np. „Dodaj alarm 1104 dla Fanuc”).
