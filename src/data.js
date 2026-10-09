@@ -122,6 +122,8 @@ var ALARMS = {
   ],
   sinumerik: [
     ['3000','Emergency stop','Aktywny wyłącznik awaryjny.','Grzybek, drzwi, łańcuch bezpieczeństwa. Zwolnij i skasuj.'],
+    ['10203','NC start without reference point','Start programu w trybie AUTOMATIC albo MDI, gdy oś, która musi być zbazowana, nie ma najazdu na punkt referencyjny.','Zbazuj osie (najazd na punkt referencyjny), potem uruchom program ponownie.'],
+    ['10208','Continue program with NC start','Po wyszukiwaniu bloku z obliczaniem sterowanie jest gotowe — program można kontynuować. To komunikat, nie usterka.','Sprawdź pozycję narzędzia i naciśnij NC Start.'],
     ['10620','Axis reaches software limit switch','Oś dojeżdża do krańcówki programowej w trakcie ruchu.','Korekcję długości, przesunięcie G54, wartości osi w programie.'],
     ['10720','Software limit switch','Zaprogramowany punkt leży za krańcówką programową.','Jak wyżej. Sprawdź też aktywne narzędzie i D.'],
     ['10750','Tool radius compensation activated without tool number','G41/G42 bez aktywnego narzędzia lub ostrza D.','Czy przed G41/G42 jest T i D (nie D0).'],

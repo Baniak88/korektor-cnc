@@ -570,7 +570,18 @@ $('#c-q').addEventListener('input', function(){ if (S.cat !== 'all' && S.cat !==
 function renderCatsVis(){ $('#c-cats').hidden = S.cat === 'slownik'; $('#c-q').placeholder = S.cat === 'slownik' ? 'Szukaj pojęcia: TCP, zużycie, G54…' : 'Szukaj: G41, TCP, wiercenie, zużycie…'; }
 
 /* ===== Alarmy ===== */
+var ALARM_HELP = {
+  fanuc: {title:'Pełny opis alarmu na sterowaniu', text:'Gdy alarm jest aktywny, naciśnij klawisz <b>HELP</b>, a potem przycisk ekranowy <b>ALARM</b> (szczegóły alarmu). Fanuc pokaże opis i przyczynę. Na niektórych wersjach ten ekran jest opcją. Alarmy maszyny (EX, numery od producenta) opisuje instrukcja maszyny.', link:'', linkText:''},
+  sinumerik: {title:'Pełny opis alarmu na sterowaniu', text:'Otwórz listę alarmów (<b>Diagnostyka</b> → <b>Alarmy</b>), zaznacz alarm i naciśnij <b>Pomoc</b> / klawisz <b>i</b>. Sinumerik pokaże wyjaśnienie i sposób usunięcia. Alarmy 700000+ to alarmy maszyny od producenta (PLC).',
+    link:'https://cache.industry.siemens.com/dl/files/312/61629312/att_78894/v1/DAsl_0911_en_en-US.pdf', linkText:'Oficjalna lista alarmów Siemens (PDF, po angielsku)'}
+};
+function renderAlarmHelp(){
+  var h = ALARM_HELP[S.alarmCtl] || ALARM_HELP.fanuc;
+  $('#a-help').innerHTML = '<span class="connname">' + h.title + '</span><p class="fine" style="font-size:14.5px">' + h.text + '</p>' +
+    (h.link ? '<a class="lnk" href="' + h.link + '" target="_blank" rel="noopener">' + h.linkText + '</a>' : '');
+}
 function renderAlarms(){
+  renderAlarmHelp();
   var q = norm($('#a-q').value.trim()), list = ALARMS[S.alarmCtl] || [];
   var rows = list.filter(function(a){ return !q || norm(a.join(' ')).indexOf(q) >= 0; });
   $('#a-list').innerHTML = rows.map(function(a){
