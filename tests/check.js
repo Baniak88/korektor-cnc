@@ -10,8 +10,8 @@ const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map(m =
 scripts.forEach((s, i) => { try { new vm.Script(s, { filename: 'script' + i + '.js' }); } catch (e) { console.error('Błąd składni w skrypcie ' + i); throw e; } });
 
 const core = html.match(/<script id="core">([\s\S]*?)<\/script>/)[1];
-const ctx = {}; vm.createContext(ctx); vm.runInContext(core + '\nthis.calcCorrection = calcCorrection; this.processProgram = processProgram; this.simulateProgram = simulateProgram; this.arcPoints = arcPoints;', ctx);
-const { calcCorrection, processProgram, simulateProgram, arcPoints } = ctx;
+const ctx = {}; vm.createContext(ctx); vm.runInContext(core + '\nthis.calcCorrection = calcCorrection; this.processProgram = processProgram; this.simulateProgram = simulateProgram; this.arcPoints = arcPoints; this.calcZero = calcZero; this.calcToolLen = calcToolLen;', ctx);
+const { calcCorrection, processProgram, simulateProgram, arcPoints, calcZero, calcToolLen } = ctx;
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, a + ' != ' + b);
 
 // Korekcja: otwór Ø20 H7 zmierzony 19.998 → celujemy w środek 20.0105 → ΔR −0.006
@@ -60,5 +60,27 @@ assert.strictEqual(sim.segs.length, 3); near(sim.segs[1].b[0], 10);
 // G28 nie jest rysowany
 sim = simulateProgram('G00 X5. Y5. Z5.\nG01 X10.\nG91 G28 Z0.\nG90', 'fanuc');
 assert.strictEqual(sim.segs.length, 1);
+
+// Punkt zerowy: krawędź od strony X− (narzędzie z lewej), kulka Ø10, pozycja maszynowa −412.5 → krawędź −407.5
+let z = calcZero({ ax: 'X', m: 'edge', side: -1, d: '10', p: '-412,5', ev: '0' });
+near(z.value, -407.5);
+// Od strony Y+, Ø6, krawędź ma mieć Y = 20 → G54 Y = (−150 − 3) − 20
+z = calcZero({ ax: 'Y', m: 'edge', side: 1, d: '6', p: '-150', ev: '20' });
+near(z.value, -173); near(z.at, -153);
+// Środek otworu z dwóch dotknięć: −300 i −260, trzpień Ø10 → środek −280, otwór 50
+z = calcZero({ ax: 'X', m: 'center', p: '-300', p2: '-260', d: '10', kind: 'hole' });
+near(z.value, -280); near(z.size, 50);
+z = calcZero({ ax: 'X', m: 'center', p: '-300', p2: '-260', d: '10', kind: 'boss' });
+near(z.size, 30);
+// Z: Z maszynowe −400, długość 150, płytka 10 → G54 Z −560
+z = calcZero({ ax: 'Z', p: '-400', L: '150', b: '10', ev: '0' });
+near(z.value, -560);
+assert.strictEqual(calcZero({ ax: 'Z', p: '-400', L: '' }), null);
+assert.strictEqual(calcZero({ ax: 'X', m: 'edge', p: '', d: '10' }), null);
+// Długość narzędzia: Z maszynowe −250, G54 Z −560, płytka 10 → 300
+near(calcToolLen({ m: 'part', p: '-250', base: '-560', b: '10' }), 300);
+// Metoda G54 Z = 0: Z maszynowe −420.3, płytka 0 → −420.3
+near(calcToolLen({ m: 'zero', p: '-420.3', b: '' }), -420.3);
+assert.strictEqual(calcToolLen({ m: 'part', p: '-250', base: '' }), null);
 
 console.log('OK — ' + scripts.length + ' skryptów, testy logiki przeszły');

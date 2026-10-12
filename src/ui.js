@@ -641,7 +641,7 @@ function renderAlarms(){
 $('#a-q').addEventListener('input', renderAlarms);
 
 /* ===== Zakładki ===== */
-var TABS = ['start','korekcja','gcode','ai','wiedza'];
+var TABS = ['start','korekcja','gcode','ai','wiedza','guide'];
 var SUBS = {kody:'kody', slownik:'slownik', alarmy:'alarmy'};
 function showWiedza(sub){
   setPressed('#wSeg', 'data-w', sub);
@@ -655,9 +655,9 @@ function showWiedza(sub){
 segClick('#wSeg', 'data-w', function(v){ showWiedza(v); });
 function showTab(t){
   if (SUBS[t]){ showWiedza(SUBS[t]); t = 'wiedza'; }
-  if (TABS.indexOf(t) < 0) t = 'start';
+  if (TABS.indexOf(t) < 0 || (t === 'guide' && !$('#guide').innerHTML)) t = 'start';
   TABS.forEach(function(x){ $('#tab-' + x).hidden = x !== t; });
-  $$('.tab').forEach(function(b){ b.setAttribute('aria-selected', String(b.getAttribute('data-tab') === t)); });
+  $$('.tab').forEach(function(b){ b.setAttribute('aria-selected', String(b.getAttribute('data-tab') === (t === 'guide' ? 'start' : t))); });
   if (t === 'start') renderStart();
   updateStrip();
 }
@@ -688,7 +688,7 @@ $('#st-machines').addEventListener('click', function(e){
   S.machine = b.getAttribute('data-pickm'); store.set('machine', S.machine); store.set('machineSet', true);
   onControlChange(); renderStart(); toast('Maszyna: ' + MACHINES[S.machine].name);
 });
-$('#st-tasks').addEventListener('click', function(e){
+document.addEventListener('click', function(e){
   var b = e.target.closest('[data-go]'); if (!b) return;
   showTab(b.getAttribute('data-go')); window.scrollTo(0, 0);
 });

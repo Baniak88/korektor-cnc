@@ -324,3 +324,31 @@ function arcPoints(s, n){
   }
   return pts;
 }
+
+/* Punkt zerowy z dotknięcia (pozycje maszynowe). o: {ax, m:'edge'|'center', side:-1|1, d, p, p2, ev, L, b, kind:'hole'|'boss'}
+   Zwraca {value (do wpisania w G54), at (pozycja krawędzi/środka/powierzchni), size?} albo null. */
+function calcZero(o){
+  var p = parseNum(o.p), d = parseNum(o.d), ev = parseNum(o.ev); if (!isFinite(ev)) ev = 0;
+  if (!isFinite(p)) return null;
+  if (o.ax === 'Z'){
+    var L = parseNum(o.L), b = parseNum(o.b); if (!isFinite(b)) b = 0;
+    if (!isFinite(L)) return null;
+    var surf = p - L - b;
+    return {value: r3(surf - ev), at: r3(surf)};
+  }
+  if (o.m === 'center'){
+    var p2 = parseNum(o.p2); if (!isFinite(p2)) return null;
+    var cen = (p + p2) / 2, gap = Math.abs(p2 - p);
+    return {value: r3(cen - ev), at: r3(cen), size: isFinite(d) ? r3(o.kind === 'boss' ? gap - d : gap + d) : null};
+  }
+  if (!isFinite(d)) return null;
+  var edge = p - (o.side < 0 ? -1 : 1) * d / 2;
+  return {value: r3(edge - ev), at: r3(edge)};
+}
+/* Długość narzędzia z dotknięcia. o: {m:'part'|'zero', p (Z maszynowe), base (G54 Z), b (płytka)} */
+function calcToolLen(o){
+  var p = parseNum(o.p), b = parseNum(o.b); if (!isFinite(b)) b = 0;
+  var base = o.m === 'part' ? parseNum(o.base) : 0;
+  if (!isFinite(p) || !isFinite(base)) return null;
+  return r3(p - base - b);
+}

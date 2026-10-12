@@ -28,19 +28,21 @@
     <div class="sec-h">
       <h2 id="h-start">Co chcesz zrobić?</h2>
     </div>
-    <div class="tasks" id="st-tasks">
-      <button type="button" class="task" data-go="korekcja"><span class="ti"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></span><span class="tt"><b>Wymiar poza tolerancją</b><small>Policzę, o ile zmienić zużycie narzędzia</small></span><span class="chev" aria-hidden="true">›</span></button>
-      <button type="button" class="task" data-go="gcode"><span class="ti"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5L3 12l5 7"/><path d="M16 5l5 7-5 7"/><path d="M13.5 4l-3 16"/></svg></span><span class="tt"><b>Zmienić wymiar w programie</b><small>Poszerz, przesuń albo zamień wartości</small></span><span class="chev" aria-hidden="true">›</span></button>
-      <button type="button" class="task" data-go="ai"><span class="ti"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span><span class="tt"><b>Zdjęcie programu do AI</b><small>Odczyt, sprawdzenie, wyjaśnienie — ChatGPT, Claude, Gemini</small></span><span class="chev" aria-hidden="true">›</span></button>
-      <button type="button" class="task" data-go="alarmy"><span class="ti"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3L2 20h20z"/><path d="M12 10v4M12 17v.5"/></svg></span><span class="tt"><b>Alarm na maszynie</b><small>Co znaczy i co sprawdzić najpierw</small></span><span class="chev" aria-hidden="true">›</span></button>
-      <button type="button" class="task" data-go="kody"><span class="ti"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg></span><span class="tt"><b>Co znaczy kod albo pojęcie?</b><small>G41, G83, TCP, zużycie i inne — z przykładami</small></span><span class="chev" aria-hidden="true">›</span></button>
-    </div>
+    <input type="search" class="search" id="st-q" placeholder="Szukaj: alarm, kod, G54, długość…" autocomplete="off" aria-label="Szukaj przewodnika, alarmu albo kodu">
+    <ul class="list" id="st-res" hidden></ul>
+    <div class="group" id="st-tasks"></div>
     <div class="group" id="st-recent" hidden>
       <span class="lab">Ostatnie korekty</span>
       <ul class="recent" id="st-recentList"></ul>
     </div>
     <button type="button" class="tlink" id="st-help">Jak korzystać z aplikacji</button>
   </div>
+</section>
+
+<!-- PRZEWODNIK -->
+<section id="tab-guide" hidden>
+  <button type="button" class="tlink" data-back>‹ Start</button>
+  <div id="guide" class="group"></div>
 </section>
 
 <!-- KOREKCJA -->
@@ -418,7 +420,7 @@
     <div class="sheet-h"><h2 id="helpH">Jak korzystać</h2><button type="button" class="btn ghost" data-close>Zamknij</button></div>
     <div class="guide">
       <h3>Start</h3>
-      <p>Ekran Start pyta, co chcesz zrobić, i prowadzi do właściwej zakładki.</p>
+      <p>Ekran Start ma trzy grupy: problem przy maszynie, ustawienia i program. Przewodniki (punkt zerowy, długość narzędzia, korekcja, wznowienie programu, złamane narzędzie, krańcówka) pokazują kroki dla Twojego sterowania, a kalkulator od razu podaje liczbę do wpisania. Wyszukiwarka na górze znajdzie przewodnik, alarm, kod albo pojęcie.</p>
       <h3>Korekcja</h3>
       <ol>
         <li>Wybierz, co mierzysz: czop, otwór, ściankę, głębokość albo wysokość.</li>
@@ -471,6 +473,7 @@
 /*{{CODES}}*/
 /*{{UI}}*/
 /*{{SIM}}*/
+/*{{GUIDES}}*/
 /*{{AI}}*/
 </script>
 <!--PWA_TAIL-->
