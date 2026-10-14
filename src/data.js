@@ -6,9 +6,9 @@ var MACHINES = {
     tips:['Sinumerik: korekcja długości i promienia włącza się z T i D. D0 wyłącza korekcję.','Przy zarządzaniu narzędziami narzędzie bywa wywoływane nazwą: T="NAZWA" M6.','Zużycie (ΔL, ΔR) wpisujesz dla konkretnego ostrza D danego narzędzia.']
   },
   matsuura: {
-    name:'Matsuura MX-330', short:'MX-330', maxS:15000, def:'fanuc', fiveAxis:true, rot:['A','C'], type:'Centrum 5-osiowe z magazynem palet (PC10)',
-    ctlNote:'Matsuura G-Tech 31i, zbudowane na Fanuc 31i.',
-    specs:[['Przesuwy X/Y/Z','435 / 465 / 560 mm'],['Osie obrotowe','A (wychylna) + C 360°'],['Wrzeciono','BT40, 15 000 obr/min (opcja 20 000)'],['Magazyn','90 narzędzi'],['Detal maks.','Ø330 × 300 mm, 80 kg'],['Palety','10 (Capto C6)']],
+    name:'Matsuura MX-520', short:'MX-520', maxS:12000, def:'fanuc', fiveAxis:true, rot:['A','C'], type:'Centrum 5-osiowe ze stołem uchylno-obrotowym (wersje z paletami PC4)',
+    ctlNote:'Matsuura G-Tech 31i (oparte na Fanuc 31i).',
+    specs:[['Przesuwy X/Y/Z','630 / 560 / 510 mm'],['Osie obrotowe','A od −125° do +10°, C 360°'],['Stół','Ø300 mm (opcja Ø500 mm)'],['Detal maks.','Ø520 × 350 mm, 150 kg'],['Wrzeciono','BT40, 12 000 obr/min (opcja 20 000)'],['Magazyn','60 albo 90 narzędzi, zmiana 1,1 s'],['Narzędzie maks.','Ø80 mm (Ø150 bez sąsiednich), 10 kg']],
     tips:['Maszyna 5-osiowa: oś A wychyla stół, oś C go obraca. Obróbka 3+2 (płaszczyzna pochylona) albo 5 osi naraz z TCP.','Płaszczyzna pochylona: G68.2 + G53.1, cofnięcie G69. TCP: G43.4, anulowanie G49.','Przy pochylonym narzędziu korekcja długości działa wzdłuż osi narzędzia, a nie wzdłuż Z stołu.','Na pochylonej płaszczyźnie X/Y korekcji i programu dotyczą tej płaszczyzny, nie stołu.','Przy kilku paletach sprawdź, który układ (G54… / G54.1 Pn) używa dana paleta.']
   },
   quaser: {
@@ -21,7 +21,7 @@ var MACHINES = {
 
 var SAMPLES = {
   fanuc5: [
-    'O2001 (MX-330 KIESZEN NA SCIANIE POD 30 STOPNI)',
+    'O2001 (MX-520 KIESZEN NA SCIANIE POD 30 STOPNI)',
     'G21 G17 G40 G49 G80 G90',
     'T5 M06 (FREZ D10)',
     'G54',

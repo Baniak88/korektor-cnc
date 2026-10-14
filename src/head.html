@@ -13,7 +13,7 @@
   --f-body:"Inter",-apple-system,"SF Pro Text",system-ui,Roboto,sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   --ic-blue:#007AFF; --ic-red:#FF3B30; --ic-orange:#FF9500; --ic-purple:#AF52DE; --ic-green:#34C759; --ic-indigo:#5856D6; --ic-teal:#30B0C7;
-  --sim-bg:#E9E9EE; --sim-stock:#C9CDD3; --sim-cut:#8FB7E8; --sim-bad:#FF3B30; --sim-tool:#FF9500; --sim-path:#007AFF; --sim-rapid:#8E8E93; --sim-future:#B8B8C0; --sim-hole:#B25000;
+  --sim-bg:#E9E9EE; --sim-stock:#C9CDD3; --sim-cut:#8FB7E8; --sim-bad:#FF3B30; --sim-tool:#FF9500; --sim-path:#007AFF; --sim-rapid:#8E8E93; --sim-future:#B8B8C0; --sim-hole:#B25000; --sim-mark:#248A3D; --sim-curline:#FFF1DC;
   --r:14px; --tabbar-h:58px;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
@@ -21,14 +21,14 @@
   --accent:#0A84FF; --accent-ink:#FFFFFF; --accent-soft:#0B2A4A;
   --ok:#30D158; --ok-dot:#30D158; --ok-soft:#0F2E18; --warn:#FF9F0A; --warn-soft:#33240A; --bad:#FF453A; --bad-soft:#3A1310;
   --ic-blue:#0A84FF; --ic-red:#FF453A; --ic-orange:#FF9F0A; --ic-purple:#BF5AF2; --ic-green:#30D158; --ic-indigo:#5E5CE6; --ic-teal:#40C8E0;
-  --sim-bg:#1C1C1E; --sim-stock:#8E9298; --sim-cut:#4F86C6; --sim-bad:#FF453A; --sim-tool:#FF9F0A; --sim-path:#0A84FF; --sim-rapid:#98989F; --sim-future:#48484A; --sim-hole:#FF9F0A;
+  --sim-bg:#1C1C1E; --sim-stock:#8E9298; --sim-cut:#4F86C6; --sim-bad:#FF453A; --sim-tool:#FF9F0A; --sim-path:#0A84FF; --sim-rapid:#98989F; --sim-future:#48484A; --sim-hole:#FF9F0A; --sim-mark:#30D158; --sim-curline:#3A2A10;
   --code:#2C2C2E; --mark:#6B5410; --scrim:rgba(0,0,0,.6); --bar:rgba(22,22,24,.88); color-scheme:dark }}
 :root[data-theme="dark"]{
   --bg:#000000; --surface:#1C1C1E; --surface-2:#2C2C2E; --fill:rgba(118,118,128,.24); --ink:#FFFFFF; --muted:#98989F; --line:#38383A;
   --accent:#0A84FF; --accent-ink:#FFFFFF; --accent-soft:#0B2A4A;
   --ok:#30D158; --ok-dot:#30D158; --ok-soft:#0F2E18; --warn:#FF9F0A; --warn-soft:#33240A; --bad:#FF453A; --bad-soft:#3A1310;
   --ic-blue:#0A84FF; --ic-red:#FF453A; --ic-orange:#FF9F0A; --ic-purple:#BF5AF2; --ic-green:#30D158; --ic-indigo:#5E5CE6; --ic-teal:#40C8E0;
-  --sim-bg:#1C1C1E; --sim-stock:#8E9298; --sim-cut:#4F86C6; --sim-bad:#FF453A; --sim-tool:#FF9F0A; --sim-path:#0A84FF; --sim-rapid:#98989F; --sim-future:#48484A; --sim-hole:#FF9F0A;
+  --sim-bg:#1C1C1E; --sim-stock:#8E9298; --sim-cut:#4F86C6; --sim-bad:#FF453A; --sim-tool:#FF9F0A; --sim-path:#0A84FF; --sim-rapid:#98989F; --sim-future:#48484A; --sim-hole:#FF9F0A; --sim-mark:#30D158; --sim-curline:#3A2A10;
   --code:#2C2C2E; --mark:#6B5410; --scrim:rgba(0,0,0,.6); --bar:rgba(22,22,24,.88); color-scheme:dark }
 
 *{box-sizing:border-box}
@@ -493,4 +493,59 @@ section > *,.group > *,.stepgroup > *,.anscard > *,.result > *,.opbody > *,.calc
 .stockbox .fields{grid-template-columns:repeat(3,minmax(0,1fr))}
 .stockbox .num input{min-height:42px;font-size:16px;padding:8px 10px}
 .sim3d-off{padding:24px 12px;text-align:center;color:var(--muted);font-size:14px;background:var(--sim-bg);border-radius:12px}
+
+/* Symulacja: bieżąca linia, program, pomiar */
+.sim3dc{position:relative}
+.s3ov{position:absolute;left:8px;right:8px;top:8px;display:flex;flex-wrap:wrap;gap:2px 8px;align-items:baseline;pointer-events:none;font-size:12.5px;color:var(--ink)}
+.s3ov:empty{display:none}
+.s3ov .s3ln{font-weight:700;color:var(--sim-tool)}
+.s3ov code{font:600 12.5px/1.3 var(--f-mono);overflow-wrap:anywhere}
+.s3ov .s3pos{flex-basis:100%;font:500 11.5px/1.3 var(--f-mono);color:var(--muted)}
+.s3ov{background:linear-gradient(var(--sim-bg),transparent);padding:2px 4px 10px;border-radius:10px 10px 0 0}
+.s3pick{position:absolute;left:8px;right:8px;bottom:8px;background:var(--surface);border-radius:10px;padding:8px 10px;font:500 13px/1.4 var(--f-mono);color:var(--ink);box-shadow:0 2px 10px rgba(0,0,0,.18);pointer-events:none}
+.s3pick b{font-family:var(--f-body);color:var(--sim-mark);margin-right:6px}
+.s3acc{display:block;font-size:11px;color:var(--muted)}
+.simctl{grid-template-columns:auto auto auto minmax(0,1fr) auto!important}
+.simbtn.spd{width:52px;font-size:14px}
+.simpos{font-size:12.5px;color:var(--muted)}
+.simprog{max-height:190px;overflow:auto;background:var(--surface-2);border-radius:12px;padding:4px 0;-webkit-overflow-scrolling:touch;position:relative}
+.simprog ol{list-style:none;margin:0;padding:0}
+.simprog li{display:grid;grid-template-columns:38px minmax(0,1fr);gap:6px;padding:3px 10px 3px 0;cursor:pointer;border-left:3px solid transparent}
+.simprog li:active{background:var(--fill)}
+.simprog .ln{font:500 11.5px/1.6 var(--f-mono);color:var(--muted);text-align:right}
+.simprog code{font:500 13px/1.6 var(--f-mono);white-space:pre;overflow:hidden;text-overflow:ellipsis}
+.simprog li.cur{background:var(--sim-curline);border-left-color:var(--sim-tool)}
+.simprog li.cur code{font-weight:700}
+.sim-new.on.sim-cur.sim-feed,.sim-new.on.sim-cur.sim-arc,.sim-new.sim-cur{stroke:var(--sim-tool);stroke-width:3.4}
+
+/* Rysunek do kalkulatora punktu zerowego */
+.zviz{width:100%;height:auto;display:block;background:var(--surface);border-radius:12px}
+.zv-part.zv-top{fill:var(--sim-stock);stroke:var(--ink);stroke-opacity:.35;stroke-width:.8}
+.zv-part.zv-front{fill:var(--sim-stock);filter:brightness(.86);stroke:var(--ink);stroke-opacity:.35;stroke-width:.8}
+.zv-part.zv-side{fill:var(--sim-stock);filter:brightness(.72);stroke:var(--ink);stroke-opacity:.35;stroke-width:.8}
+.zv-hole{fill:var(--sim-cut);stroke:var(--ink);stroke-opacity:.4;stroke-width:.8}
+.zv-gauge{fill:var(--sim-hole);fill-opacity:.55;stroke:var(--ink);stroke-opacity:.4;stroke-width:.8}
+.zv-tool.zv-front,.zv-tool.zv-top{fill:var(--sim-tool);stroke:var(--ink);stroke-opacity:.35;stroke-width:.8}
+.zv-tool.zv-top{filter:brightness(1.12)}
+.zv-holder{fill:var(--sim-rapid);fill-opacity:.6}
+.zv-stylus{stroke:var(--sim-rapid);stroke-width:3;stroke-linecap:round}
+.zv-ball{fill:var(--sim-tool);stroke:var(--ink);stroke-opacity:.4}
+.zv-edge{stroke:var(--sim-bad);stroke-width:1.6;stroke-dasharray:5 4}
+.zv-ax{stroke:var(--sim-mark);stroke-width:2.2;stroke-linecap:round}
+.zv-o{fill:var(--sim-mark)}
+.zv-axl{fill:var(--sim-mark);font:700 10px var(--f-body)}
+.zv-t{fill:var(--ink);font:600 11px var(--f-mono)}
+.zv-res{fill:var(--sim-mark);font:700 12px var(--f-mono)}
+.zv-dim{fill:var(--muted);font:500 10.5px var(--f-mono)}
+.zv-dimln{stroke:var(--accent);stroke-width:1.2;stroke-dasharray:3 3}
+.zvnote{margin-top:4px}
+.zvwrap{display:grid;gap:6px;background:var(--surface);border-radius:12px;padding:6px 10px 10px}
+.zviz{background:transparent!important}
+.zv-holein{fill:var(--sim-cut);filter:brightness(.7)}
+.zv-mk circle{fill:var(--accent)}
+.zv-mk text{fill:var(--accent-ink);font:700 10.5px var(--f-body)}
+.zvleg{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.zvleg li{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:8px;align-items:center;font-size:13.5px}
+.zv-n{width:18px;height:18px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font:700 11px/18px var(--f-body);text-align:center}
+.zv-ok{color:var(--ok)}
 </style>

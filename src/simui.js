@@ -16,22 +16,29 @@ var SIM_EX = {
 
 function SimView(root, opts){
   opts = opts || {};
-  var self = this, view = store.get('simview', '3d'), cur = 0, timer = null, data = null, cmp = null, lines = [], ctlNow = 'fanuc', setOpts = {};
+  var self = this, view = store.get('simview', '3d'), cur = 0, anim = null, frac = 0, partCut = 0, speed = +store.get('simspeed', 1) || 1, data = null, cmp = null, lines = [], ctlNow = 'fanuc', setOpts = {};
   var s3 = null, st = null, applied = 0, stockKey = '', bad3 = [], defD = parseNum(store.get('simD', '10')) || 10, userStock = null;
   root.innerHTML =
     '<div class="simhead"><span class="lab">' + (opts.title || 'Podgląd ruchów') + '</span>' +
     '<div class="seg small"><button type="button" data-v="3d">3D</button><button type="button" data-v="xy">Z góry</button><button type="button" data-v="xz">Z boku</button></div></div>' +
     '<svg class="simsvg" viewBox="0 0 320 220" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Rysunek toru narzędzia"></svg>' +
     '<div class="sim3d" hidden><div class="sim3dc"></div>' +
-      '<p class="sim3dhint">Przeciągnij — obrót · dwa palce — przybliżenie · dwa stuknięcia — widok od nowa</p>' +
+      '<p class="sim3dhint">Przeciągnij — obrót · dwa palce — przybliżenie i przesunięcie · stuknij w detal — pomiar punktu</p>' +
       '<div class="sim3dbar"><button type="button" class="btn" data-s3="reset">Widok od nowa</button><button type="button" class="btn" data-s3="stock">Półfabrykat</button></div>' +
       '<div class="stockbox" hidden></div></div>' +
     '<div class="simctl"><button type="button" class="simbtn" data-a="prev" aria-label="Poprzedni krok">‹</button>' +
     '<button type="button" class="simbtn play" data-a="play" aria-label="Odtwórz">▶</button>' +
     '<button type="button" class="simbtn" data-a="next" aria-label="Następny krok">›</button>' +
-    '<input type="range" min="0" max="0" value="0" aria-label="Krok programu"></div>' +
-    '<div class="simline"></div><div class="simleg"></div><ul class="notes simnotes"></ul>';
-  var svg = root.querySelector('svg'), range = root.querySelector('input[type=range]'), playBtn = root.querySelector('[data-a=play]');
+    '<input type="range" min="0" max="0" value="0" aria-label="Krok programu">' +
+    '<button type="button" class="simbtn spd" data-a="speed" aria-label="Prędkość odtwarzania">1×</button></div>' +
+    '<div class="simline"></div>' +
+    '<div class="simprog" role="list" aria-label="Program — dotknij linii, żeby przejść do niej w symulacji"><ol></ol></div>' +
+    '<div class="simleg"></div><ul class="notes simnotes"></ul>';
+  var svg = root.querySelector('svg'), range = root.querySelector('input[type=range]'), playBtn = root.querySelector('[data-a=play]'), spdBtn = root.querySelector('[data-a=speed]');
+  var progBox = root.querySelector('.simprog'), progOl = progBox.querySelector('ol'), curLi = null;
+  var SPEEDS = [0.5, 1, 2, 5, 20];
+  function spdLabel(){ spdBtn.textContent = String(speed).replace('.', ',') + '×'; }
+  spdLabel();
   var segEl = root.querySelector('.seg');
   function markView(){ Array.prototype.forEach.call(segEl.querySelectorAll('[data-v]'), function(x){ x.setAttribute('aria-pressed', String(x.getAttribute('data-v') === view)); }); }
   segEl.addEventListener('click', function(e){
@@ -66,13 +73,97 @@ function SimView(root, opts){
     var b = e.target.closest('[data-a]'); if (!b) return;
     var a = b.getAttribute('data-a');
     if (a === 'play') toggle();
+    else if (a === 'speed'){ speed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length]; store.set('simspeed', speed); spdLabel(); if (anim){ anim.t0 = performance.now() - frac * stepDur(anim.i) * 1000; } }
     else { stop(); go(cur + (a === 'next' ? 1 : -1)); }
   });
   range.addEventListener('input', function(){ stop(); go(+this.value); });
+  progOl.addEventListener('click', function(e){
+    var li = e.target.closest('li[data-ln]'); if (!li || !data) return;
+    var ln = +li.getAttribute('data-ln'), k = -1;
+    data.steps.forEach(function(s, i){ if (s.ln <= ln) k = i; });
+    stop(); go(k + 1);
+  });
 
-  function toggle(){ if (timer) stop(); else { if (cur >= data.steps.length) cur = 0; timer = setInterval(function(){ if (cur >= data.steps.length){ stop(); return; } go(cur + 1); }, 420); playBtn.textContent = '❚❚'; } }
-  function stop(){ if (timer){ clearInterval(timer); timer = null; } playBtn.textContent = '▶'; }
-  function go(n){ cur = Math.max(0, Math.min(n, data ? data.steps.length : 0)); range.value = cur; draw(); }
+  /* ----- Odtwarzanie płynne: narzędzie jedzie po torze bieżącej linii ----- */
+  function stepSegs(i){ return [i > 0 ? data.steps[i - 1].seg : 0, data.steps[i].seg]; }
+  function segR(s){ return ((s.td > 0 ? s.td : defD) || 10) / 2; }
+  function stepPoly(i){
+    data._poly = data._poly || [];
+    if (data._poly[i]) return data._poly[i];
+    var r = stepSegs(i), out = [], len = 0;
+    for (var n = r[0]; n < r[1]; n++){
+      var s = data.segs[n]; if (s.zu) continue;
+      var P = s.type === 'hole' ? [s.a, s.b, s.a] : segPath(s);
+      for (var q = 1; q < P.length; q++){
+        var a = P[q - 1], b = P[q], l = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+        out.push({a:a, b:b, l:l, s:s, cut:!(s.type === 'hole' && q === 2)}); len += l;
+      }
+    }
+    return (data._poly[i] = {p:out, len:len});
+  }
+  function stepDur(i){ var L = stepPoly(i).len; return (L > 1e-6 ? Math.max(0.3, Math.min(2.4, L / 60)) : 0.22) / speed; }
+  function lerp(a, b, t){ return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+  function pointAt(i, f){
+    var P = stepPoly(i), L = P.len * f, acc = 0;
+    for (var q = 0; q < P.p.length; q++){ var x = P.p[q]; if (acc + x.l >= L) return {p:lerp(x.a, x.b, x.l > 1e-9 ? (L - acc) / x.l : 1), s:x.s}; acc += x.l; }
+    var lp = P.p[P.p.length - 1]; return lp ? {p:lp.b, s:lp.s} : null;
+  }
+  function cutPartial(i, L0, L1){
+    var P = stepPoly(i), acc = 0;
+    for (var q = 0; q < P.p.length; q++){
+      var x = P.p[q], s0 = acc, s1 = acc + x.l; acc = s1;
+      if (s1 <= L0 || !x.cut) continue; if (s0 >= L1) break;
+      var ta = x.l > 1e-9 ? Math.max(0, (L0 - s0) / x.l) : 0, tb = x.l > 1e-9 ? Math.min(1, (L1 - s0) / x.l) : 1;
+      cutPiece(st, lerp(x.a, x.b, ta), lerp(x.a, x.b, tb), segR(x.s), {rapid:x.s.type === 'rapid'});
+    }
+  }
+  function toggle(){
+    if (anim){ var wi = anim.i, wf = frac; stop(); if (wf > 0) go(wi + 1); else draw(); return; }
+    if (!data || !data.steps.length) return;
+    if (cur >= data.steps.length) cur = 0;
+    anim = {i:cur, t0:performance.now()}; frac = 0;
+    playBtn.textContent = '❚❚'; playBtn.setAttribute('aria-label', 'Pauza');
+    if (s3) s3.throttle = true;
+    requestAnimationFrame(tick);
+  }
+  function tick(now){
+    if (!anim) return;
+    var f = (now - anim.t0) / (stepDur(anim.i) * 1000);
+    if (f >= 1){
+      cur = anim.i + 1; frac = 0; range.value = cur;
+      if (cur >= data.steps.length){ stop(); draw(); return; }
+      anim.i = cur; anim.t0 = now;
+    } else frac = f;
+    draw();
+    requestAnimationFrame(tick);
+  }
+  function stop(){ anim = null; if (frac > 0){ frac = 0; } playBtn.textContent = '▶'; playBtn.setAttribute('aria-label', 'Odtwórz'); if (s3){ s3.throttle = false; } }
+  function go(n){ cur = Math.max(0, Math.min(n, data ? data.steps.length : 0)); frac = 0; range.value = cur; draw(); }
+  /* Bieżąca linia i pozycja narzędzia */
+  function curStep(){ if (!data || !data.steps.length) return -1; if (anim && cur < data.steps.length) return cur; return cur - 1; }
+  function toolPos(){
+    if (!data) return null;
+    if (anim && cur < data.steps.length){ var r = pointAt(cur, frac); if (r) return r; }
+    var upto = cur > 0 ? data.steps[cur - 1].seg : 0, last = upto > 0 ? data.segs[upto - 1] : data.segs[0];
+    if (!last || last.zu) return null;
+    var P = segPath(last);
+    return {p:upto > 0 ? (last.type === 'hole' ? last.a : P[P.length - 1]) : P[0], s:last};
+  }
+  function renderListing(){
+    var max = 20000, L = lines.length > max ? lines.slice(0, max) : lines;
+    progOl.innerHTML = L.map(function(l, i){ return '<li data-ln="' + (i + 1) + '"><span class="ln">' + (i + 1) + '</span><code>' + (esc(l) || ' ') + '</code></li>'; }).join('');
+    curLi = null; progBox.scrollTop = 0;
+  }
+  function markLine(ln){
+    if (curLi && +curLi.getAttribute('data-ln') === ln) return;
+    if (curLi) curLi.classList.remove('cur');
+    curLi = ln ? progOl.children[ln - 1] : null;
+    if (!curLi) return;
+    curLi.classList.add('cur');
+    var top = curLi.offsetTop - progBox.clientHeight / 3;
+    progBox.scrollTop = Math.max(0, top);
+  }
+  function fmtP(v){ var s = (Math.round(v * 1000) / 1000).toFixed(3); return (s === '-0.000' ? '0.000' : s).replace('.', ',').replace('-', '−'); }
 
   function proj(p){ return view === 'xy' ? [p[0], p[1]] : [p[0], p[2]]; }
   function segPts(s){
@@ -111,26 +202,38 @@ function SimView(root, opts){
     return A;
   }
   function stockDef(){ var A = autoStock(), U = userStock || {}, o = {}; ['x0', 'y0', 'x1', 'y1', 'top', 'bot'].forEach(function(k){ o[k] = U[k] != null ? U[k] : A[k]; }); if (o.x1 <= o.x0) o.x1 = o.x0 + 1; if (o.y1 <= o.y0) o.y1 = o.y0 + 1; if (o.bot >= o.top) o.bot = o.top - 1; return o; }
-  function newStock(){ var d = stockDef(); return makeStock(d.x0, d.y0, d.x1, d.y1, d.top, d.bot, 200); }
-  function prep(){ if (!data) return; data.segs.forEach(function(s){ delete s.cpath; }); data.compNotes = compPaths(data.segs, defD); }
+  function newStock(){ var d = stockDef(); return makeStock(d.x0, d.y0, d.x1, d.y1, d.top, d.bot, 360); }
+  function prep(){ if (!data) return; data.segs.forEach(function(s){ delete s.cpath; }); data._poly = null; data.compNotes = compPaths(data.segs, defD); }
   function check3(){
     // ruch szybki w materiał — sprawdzane na całym programie
     if (!data) return [];
     return cutSegs(newStock(), data.segs, 0, data.segs.length, defD);
   }
   function draw3(upto){
-    if (!s3){ s3 = new Sim3D(root.querySelector('.sim3dc')); }
+    if (!s3){
+      s3 = new Sim3D(root.querySelector('.sim3dc'), {onPick:function(r){
+        if (!r){ s3.pickEl.hidden = true; return; }
+        s3.pickEl.hidden = false;
+        s3.pickEl.innerHTML = '<b>Punkt</b> X ' + fmtP(r.x) + ' · Y ' + fmtP(r.y) + ' · Z ' + fmtP(r.z) + (r.z < r.top - 0.001 ? '<br>głębokość od góry ' + fmtP(r.top - r.z) : '') + '<span class="s3acc"> ±' + fmtP(st ? st.cell / 2 : 0).replace(/0+$/, '') + ' mm (siatka)</span>';
+      }});
+    }
     if (!s3.ok) return;
     var key = JSON.stringify(stockDef()) + '|' + defD;
-    if (key !== stockKey || upto < applied || !st){
+    if (key !== stockKey || upto < applied || !st || (partCut && !anim)){
       var keep = !!st && key === stockKey;
-      st = newStock(); applied = 0; s3.setStock(st, keep && stockKey !== ''); stockKey = key;
+      st = newStock(); applied = 0; partCut = 0; s3.setStock(st, keep && stockKey !== ''); stockKey = key;
     }
-    if (upto > applied){ cutSegs(st, data.segs, applied, upto, defD); applied = upto; s3.meshDirty = true; }
-    s3.setPath(data.segs, upto);
-    var last = upto > 0 ? data.segs[upto - 1] : data.segs[0], tp = null;
-    if (last && !last.zu){ var P = segPath(last); tp = upto > 0 ? (last.type === 'hole' ? last.a : P[P.length - 1]) : P[0]; }
-    s3.setTool(tp, last ? ((last.td > 0 ? last.td : defD) || 10) / 2 : 5);
+    if (upto > applied){ cutSegs(st, data.segs, applied, upto, defD); applied = upto; partCut = 0; s3.meshDirty = true; }
+    var ci = curStep(), cr = ci >= 0 ? stepSegs(ci) : [0, 0];
+    if (anim && cur < data.steps.length){
+      var L1 = stepPoly(cur).len * frac;
+      if (L1 > partCut){ cutPartial(cur, partCut, L1); partCut = L1; s3.meshDirty = true; }
+    }
+    s3.setPath(data.segs, upto, cr[0], cr[1]);
+    var tp = toolPos();
+    s3.setTool(tp ? tp.p : null, tp ? segR(tp.s) : 5);
+    var stp = ci >= 0 ? data.steps[ci] : null;
+    s3.overlay.innerHTML = stp ? '<span class="s3ln">Linia ' + stp.ln + '</span><code>' + esc((lines[stp.ln - 1] || '').trim().slice(0, 60)) + '</code>' + (tp ? '<span class="s3pos">X ' + fmtP(tp.p[0]) + ' Y ' + fmtP(tp.p[1]) + ' Z ' + fmtP(tp.p[2]) + '</span>' : '') : '';
     s3.draw();
   }
   function draw(){
@@ -138,6 +241,7 @@ function SimView(root, opts){
     var is3 = view === '3d';
     svg.style.display = is3 ? 'none' : ''; box3.hidden = !is3;
     if (is3){ draw3(data.steps.length ? (cur === 0 ? 0 : data.steps[cur - 1].seg) : data.segs.length); stepText(); return; }
+    var ci2 = curStep(), cr2 = ci2 >= 0 ? stepSegs(ci2) : [0, 0];
     var all = cmp ? [data, cmp] : [data];
     var bb = bounds(all), W = 320, H = 220;
     var sc = Math.min(W / (bb[2] - bb[0]), H / (bb[3] - bb[1]));
@@ -153,7 +257,7 @@ function SimView(root, opts){
     function layer(d, cls, upto){
       var s = '', end = upto == null ? d.segs.length : upto;
       d.segs.forEach(function(g, i){
-        var c = cls + (i < end ? ' on' : '');
+        var c = cls + (i < end ? ' on' : '') + (d === data && i >= cr2[0] && i < cr2[1] ? ' sim-cur' : '');
         if (g.type === 'hole'){
           var q = proj(g.a), q2 = proj(g.b);
           if (view === 'xy') s += '<circle class="sim-hole ' + c + '" cx="' + X(q[0]) + '" cy="' + Y(q[1]) + '" r="4.5"/>';
@@ -166,19 +270,21 @@ function SimView(root, opts){
     if (cmp) out += layer(cmp, 'sim-old', cmp.segs.length);
     out += layer(data, 'sim-new' + (cmp ? ' sim-cmp' : ''), upto);
     // pozycja narzędzia
-    var last = upto > 0 ? data.segs[upto - 1] : data.segs[0];
-    if (last){
-      var tp = proj(upto > 0 ? last.b : last.a);
+    var tpp = toolPos();
+    if (tpp){
+      var tp = proj(tpp.p);
       out += '<circle class="sim-tool" cx="' + X(tp[0]) + '" cy="' + Y(tp[1]) + '" r="6"/>';
     }
     svg.innerHTML = out;
     stepText();
   }
   function stepText(){
-    var st = cur > 0 ? data.steps[cur - 1] : null;
-    root.querySelector('.simline').innerHTML = st
-      ? '<span class="mono simcode">' + esc((lines[st.ln - 1] || '').trim()) + '</span><span class="simdesc">' + esc(st.text) + '</span><span class="simstep">Krok ' + cur + ' z ' + data.steps.length + ' · linia ' + st.ln + '</span>'
-      : '<span class="simdesc">' + (data.steps.length ? 'Naciśnij ▶ albo przesuń suwak, żeby zobaczyć ruchy po kolei.' : 'Brak ruchów do pokazania.') + '</span>';
+    var ci = curStep(), stp = ci >= 0 ? data.steps[ci] : null, tp = toolPos();
+    markLine(stp ? stp.ln : 0);
+    root.querySelector('.simline').innerHTML = stp
+      ? '<span class="simstep">Linia ' + stp.ln + ' · krok ' + (ci + 1) + ' z ' + data.steps.length + (anim ? ' · w trakcie' : '') + '</span><span class="mono simcode">' + esc((lines[stp.ln - 1] || '').trim()) + '</span><span class="simdesc">' + esc(stp.text) + '</span>' +
+        (tp ? '<span class="simpos mono">Narzędzie: X ' + fmtP(tp.p[0]) + ' · Y ' + fmtP(tp.p[1]) + ' · Z ' + fmtP(tp.p[2]) + (tp.s && tp.s.tool != null ? ' · T' + tp.s.tool + ' Ø' + fmtN(segR(tp.s) * 2) : '') + '</span>' : '')
+      : '<span class="simdesc">' + (data.steps.length ? 'Naciśnij ▶ albo dotknij linii programu poniżej.' : 'Brak ruchów do pokazania.') + '</span>';
   }
   function legend(){
     var is3 = view === '3d';
@@ -204,7 +310,7 @@ function SimView(root, opts){
     setOpts = o || {}; ctlNow = ctl; stockKey = ''; st = null; applied = 0;
     lines = String(text || '').split(/\r?\n/);
     data = simulateProgram(text, ctl, setOpts);
-    prep();
+    prep(); renderListing(); partCut = 0; frac = 0;
     cmp = compareText ? simulateProgram(compareText, ctl) : null;
     range.max = data.steps.length;
     cur = opts.showAll ? data.steps.length : 0;

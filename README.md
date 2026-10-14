@@ -1,6 +1,6 @@
 # Korektor CNC
 
-Aplikacja na telefon dla operatora frezarek CNC (Chiron FZ12, Matsuura MX-330, Quaser MV184 — Fanuc i Sinumerik).
+Aplikacja na telefon dla operatora frezarek CNC (Chiron FZ12, Matsuura MX-520, Quaser MV184 — Fanuc i Sinumerik).
 
 - **Korekcja z pomiaru** — ile zmienić zużycie narzędzia (D/H, ΔR/ΔL), żeby wymiar wszedł w tolerancję, i gdzie to wpisać na sterowaniu.
 - **Program** — symulacja 3D zbierania materiału (obrót palcem, korekcja promienia, wykrywanie ruchu szybkiego w materiał), podgląd ruchów (animacja toru narzędzia z opisem każdej linii, porównanie przed i po zmianie) oraz poszerzanie, przesuwanie i zamiana wymiarów w G-code z ostrzeżeniami.

@@ -318,3 +318,107 @@ renderStartTasks();
 /* Po zmianie maszyny / sterowania odśwież otwarty przewodnik */
 var _occGuide = onControlChange;
 onControlChange = function(){ _occGuide(); if (curGuide && !$('#tab-guide').hidden) openGuide(curGuide); };
+
+/* ===== Rysunek 3D (rzut ukośny) do kalkulatorów punktu zerowego i długości narzędzia =====
+   Schemat, nie w skali — liczby na rysunku są z kalkulatora. */
+function zvNum(v){ return isFinite(v) ? String(Math.round(v * 1000) / 1000).replace('.', ',').replace('-', '−') : '?'; }
+function zeroViz(o){
+  var W = 320, H = 190, ca = Math.cos(0.62) * 0.5, sa = Math.sin(0.62) * 0.5, S = 2.05, OX = 62, OY = 168;
+  function P(x, y, z){ return [OX + (x + y * ca) * S, OY - (z + 26 + y * sa) * S]; }
+  function pts(a){ return a.map(function(p){ var q = P(p[0], p[1], p[2]); return q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join(' '); }
+  function poly(a, cls){ return '<polygon class="' + cls + '" points="' + pts(a) + '"/>'; }
+  function ln(a, b, cls){ var p = P(a[0], a[1], a[2]), q = P(b[0], b[1], b[2]); return '<line class="' + cls + '" x1="' + p[0].toFixed(1) + '" y1="' + p[1].toFixed(1) + '" x2="' + q[0].toFixed(1) + '" y2="' + q[1].toFixed(1) + '"/>'; }
+  function tx(p, t, cls, anchor){ var q = P(p[0], p[1], p[2]); return '<text class="' + cls + '" x="' + q[0].toFixed(1) + '" y="' + q[1].toFixed(1) + '" text-anchor="' + (anchor || 'middle') + '">' + t + '</text>'; }
+  function box(x0, y0, z0, x1, y1, z1, cls){
+    return poly([[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]], cls + ' zv-top') + poly([[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]], cls + ' zv-front') + poly([[x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [x1, y0, z1]], cls + ' zv-side');
+  }
+  function circ(cx, cy, z, r){ var a = []; for (var i = 0; i < 40; i++){ var t = i / 40 * Math.PI * 2; a.push([cx + r * Math.cos(t), cy + r * Math.sin(t), z]); } return a; }
+  function cyl(cx, cy, z0, z1, r, cls){
+    var a = [], n = 40, i, t;
+    for (i = 0; i <= n / 2; i++){ t = Math.PI * 0.86 + i / n * Math.PI * 2; a.push([cx + r * Math.cos(t), cy + r * Math.sin(t), z0]); }
+    for (i = n / 2; i >= 0; i--){ t = Math.PI * 0.86 + i / n * Math.PI * 2; a.push([cx + r * Math.cos(t), cy + r * Math.sin(t), z1]); }
+    return poly(a, cls + ' zv-front') + poly(circ(cx, cy, z1, r), cls + ' zv-top');
+  }
+  function probe(x, y, z, r){
+    var q = P(x, y, z), top = P(x, y, z + 30);
+    return '<line class="zv-stylus" x1="' + q[0].toFixed(1) + '" y1="' + q[1].toFixed(1) + '" x2="' + top[0].toFixed(1) + '" y2="' + top[1].toFixed(1) + '"/>' +
+      '<circle class="zv-ball" cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="' + (r * S).toFixed(1) + '"/>';
+  }
+  function mark(p, n, dx, dy){ var q = P(p[0], p[1], p[2]), x = q[0] + (dx || 0), y = q[1] + (dy || 0); return '<g class="zv-mk"><circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="8.5"/><text x="' + x.toFixed(1) + '" y="' + (y + 3.8).toFixed(1) + '" text-anchor="middle">' + n + '</text></g>'; }
+  function origin(x, y, z){
+    return ln([x, y, z], [x + 16, y, z], 'zv-ax') + ln([x, y, z], [x, y + 20, z], 'zv-ax') + ln([x, y, z], [x, y, z + 16], 'zv-ax') +
+      '<circle class="zv-o" cx="' + P(x, y, z)[0].toFixed(1) + '" cy="' + P(x, y, z)[1].toFixed(1) + '" r="3.4"/>' +
+      tx([x + 18, y, z - 1], 'X', 'zv-axl', 'start') + tx([x + 1, y + 22, z], 'Y', 'zv-axl', 'start') + tx([x, y, z + 18], 'Z', 'zv-axl');
+  }
+  var h = '', leg = [], r = 5, ax = o.ax, val = function(v, pre){ return '<b class="mono">' + (pre || '') + zvNum(v) + '</b>'; };
+  if (ax === 'Z'){
+    var bz = o.b > 0 ? 4 : 0, tool = o.mode === 'tool';
+    h += box(0, 0, -26, 80, 40, 0, 'zv-part');
+    h += origin(0, 0, 0);
+    if (bz) h += box(31, 12, 0, 49, 28, bz, 'zv-gauge');
+    h += cyl(40, 20, bz, bz + 30, 6, 'zv-tool');
+    var hq = P(40, 20, bz + 30);
+    h += '<rect class="zv-holder" x="' + (hq[0] - 17).toFixed(1) + '" y="' + (hq[1] - 26).toFixed(1) + '" width="34" height="26" rx="4"/>';
+    h += ln([58, 20, bz + 30], [58, 20, bz], 'zv-dimln') + mark([40, 20, bz + 30], 1, 30, -18) + (bz ? mark([49, 12, bz / 2], 2, 16, 0) : '') + mark([58, 20, bz + 15], 3, 12, 0) + mark([0, 0, 0], 4, -16, 8);
+    leg.push([1, 'Z maszynowe przy dotknięciu', val(o.p)]);
+    if (bz) leg.push([2, 'Płytka / wałeczek', val(o.b)]);
+    if (tool){ leg.push([3, 'Długość narzędzia — wpisz', '<b class="mono zv-ok">' + zvNum(o.res) + '</b>']); leg.push([4, 'G54 Z (z tabeli)', val(o.base)]); }
+    else { leg.push([3, 'Długość narzędzia (z tabeli)', val(o.L)]); leg.push([4, (o.wo || 'G54') + ' Z — wpisz', '<b class="mono zv-ok">' + zvNum(o.res) + '</b>']); }
+  } else if (o.m === 'center'){
+    var isX = ax === 'X', R = 15, cx = 40, cy = 20, boss = o.kind === 'boss';
+    h += box(0, 0, -26, 80, 40, 0, 'zv-part');
+    if (boss) h += cyl(cx, cy, 0, 10, R, 'zv-part');
+    else h += poly(circ(cx, cy, 0, R), 'zv-hole') + poly(circ(cx, cy - 3, -9, R * 0.92), 'zv-holein');
+    var zt = boss ? 5 : -2, off = boss ? R + r : R - r;
+    var p1 = isX ? [cx - off, cy, zt] : [cx, cy - off, zt], p2 = isX ? [cx + off, cy, zt] : [cx, cy + off, zt];
+    h += probe(p1[0], p1[1], p1[2], r) + probe(p2[0], p2[1], p2[2], r);
+    h += origin(cx, cy, boss ? 10 : 0);
+    h += mark(p1, 1, -14, -14) + mark(p2, 2, 14, -14) + mark([cx, cy, boss ? 10 : 0], 3, 0, 16);
+    leg.push([1, 'Pozycja 1 (maszynowa ' + ax + ')', val(o.p)]);
+    leg.push([2, 'Pozycja 2 (maszynowa ' + ax + ')', val(o.p2)]);
+    leg.push([3, 'Środek → ' + (o.wo || 'G54') + ' ' + ax + ' — wpisz', '<b class="mono zv-ok">' + zvNum(o.res) + '</b>']);
+    if (isFinite(o.size)) leg.push(['', (boss ? 'Zmierzony czop' : 'Zmierzony otwór'), val(o.size, 'Ø')]);
+  } else {
+    var isX2 = ax === 'X', left = o.side < 0, ex, ey, pp;
+    h += box(0, 0, -26, 80, 40, 0, 'zv-part');
+    if (isX2){ ex = left ? 0 : 80; pp = [left ? -r : 80 + r, 0, -7]; h += ln([ex, 0, -30], [ex, 0, 10], 'zv-edge'); }
+    else { ey = left ? 0 : 40; pp = [62, left ? -r * 2.2 : 40 + r, -7]; h += ln([-8, ey, 0], [92, ey, 0], 'zv-edge'); }
+    var ox = isX2 ? ex : 62, oy = isX2 ? 20 : ey;
+    h += origin(isX2 ? ex : 30, isX2 ? 20 : ey, 0);
+    h += probe(pp[0], pp[1], pp[2], r);
+    h += mark(pp, 1, left ? -16 : 16, -14) + mark(isX2 ? [ex, 0, -26] : [92, ey, 0], 2, isX2 ? (left ? -12 : 12) : 10, isX2 ? 8 : 0);
+    leg.push([1, ax + ' maszynowe (środek kulki Ø' + zvNum(o.d) + ')', val(o.p)]);
+    leg.push([2, 'Krawędź detalu → ' + (o.wo || 'G54') + ' ' + ax + ' — wpisz', '<b class="mono zv-ok">' + zvNum(o.res) + '</b>']);
+  }
+  return '<div class="zvwrap"><svg class="zviz" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Rysunek: gdzie dotykasz i gdzie jest punkt zerowy">' + h + '</svg>' +
+    '<ul class="zvleg">' + leg.map(function(l){ return '<li>' + (l[0] !== '' ? '<span class="zv-n">' + l[0] + '</span>' : '<span></span>') + '<span>' + l[1] + '</span>' + l[2] + '</li>'; }).join('') + '</ul>' +
+    '<p class="fine zvnote">Rysunek poglądowy, nie w skali. Zielony znak to punkt zerowy detalu (X, Y, Z).' + (ax === 'Y' ? ' Y− = strona operatora.' : '') + '</p></div>';
+}
+(function(){
+  var _zc = zeroCalc, _tc = toolCalc;
+  zeroCalc = function(box){
+    _zc(box);
+    function upd(){
+      var out = box.querySelector('#zc-out'); if (!out) return;
+      var v = box.querySelector('#zc-viz');
+      if (!v){ v = document.createElement('div'); v.id = 'zc-viz'; out.parentNode.insertBefore(v, out); }
+      var r = calcZero(ZC) || {};
+      v.innerHTML = zeroViz({ax:ZC.ax, m:ZC.m, side:+ZC.side, d:parseNum(ZC.d), p:parseNum(ZC.p), p2:parseNum(ZC.p2), L:parseNum(ZC.L), b:parseNum(ZC.b) || 0, wo:esc(ZC.wo), kind:ZC.kind, res:r.value, size:r.size});
+    }
+    box.addEventListener('input', function(){ setTimeout(upd, 0); });
+    box.addEventListener('click', function(){ setTimeout(upd, 0); });
+    upd();
+  };
+  toolCalc = function(box){
+    _tc(box);
+    function upd(){
+      var out = box.querySelector('#tc-out'); if (!out) return;
+      var v = box.querySelector('#tc-viz');
+      if (!v){ v = document.createElement('div'); v.id = 'tc-viz'; out.parentNode.insertBefore(v, out); }
+      v.innerHTML = zeroViz({ax:'Z', mode:'tool', p:parseNum(TC.p), b:parseNum(TC.b) || 0, base:TC.m === 'part' ? parseNum(TC.base) : 0, res:calcToolLen(TC)});
+    }
+    box.addEventListener('input', function(){ setTimeout(upd, 0); });
+    box.addEventListener('click', function(){ setTimeout(upd, 0); });
+    upd();
+  };
+})();
