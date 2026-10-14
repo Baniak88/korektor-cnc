@@ -400,7 +400,7 @@ function zeroVizSvg(o){
     h += origin(isX2 ? ex : 30, isX2 ? 20 : ey, 0);
     h += probe(pp[0], pp[1], pp[2], r);
     h += mark(pp, 1, left ? -16 : 16, -14) + mark(isX2 ? [ex, 0, -26] : [92, ey, 0], 2, isX2 ? (left ? -12 : 12) : 10, isX2 ? 8 : 0);
-    leg.push([1, ax + ' maszynowe (środek kulki Ø' + zvNum(o.d) + ')', val(o.p)]);
+    leg.push([1, ax + ' MASZYNA — kulka Ø' + zvNum(o.d) + ' od strony ' + ax + (left ? '−' : '+'), val(o.p)]);
     leg.push([2, 'Krawędź detalu → ' + (o.wo || 'G54') + ' ' + ax + ' — wpisz', '<b class="mono zv-ok">' + zvNum(o.res) + '</b>']);
   }
   return '<div class="zvwrap"><svg class="zviz" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Rysunek: gdzie dotykasz i gdzie jest punkt zerowy">' + h + '</svg>' +
@@ -420,9 +420,13 @@ function zvNode(){
 }
 function zvPlace(){
   ZV.labels.forEach(function(l){
-    var q = ZV.s3.project(l.p);
+    var q = ZV.s3.project(l.p), e = ZV.s3.eye();
+    if (q && l.nrm && e && (l.nrm[0] * (e[0] - l.p[0]) + l.nrm[1] * (e[1] - l.p[1]) + l.nrm[2] * (e[2] - l.p[2])) <= 0) q = null;
     if (!q){ l.el.style.display = 'none'; return; }
-    l.el.style.display = ''; l.el.style.left = (q[0] + (l.dx || 0)).toFixed(1) + 'px'; l.el.style.top = (q[1] + (l.dy || 0)).toFixed(1) + 'px';
+    l.el.style.display = '';
+    var x = q[0] + (l.dx || 0), y = q[1] + (l.dy || 0), pw = l.el.parentNode.clientWidth, hw = l.el.offsetWidth / 2 + 4;
+    if (l.txt) x = Math.max(hw, Math.min(pw - hw, x));
+    l.el.style.left = x.toFixed(1) + 'px'; l.el.style.top = y.toFixed(1) + 'px';
   });
 }
 function zvScene(o){
@@ -435,6 +439,21 @@ function zvScene(o){
     it.push({t:'cyl', p:p, ax:[1, 0, 0], r:0.6, h:16, c:'mark'}); it.push({t:'cyl', p:p, ax:[0, 1, 0], r:0.6, h:16, c:'mark'}); it.push({t:'cyl', p:p, ax:[0, 0, 1], r:0.6, h:16, c:'mark'});
   }
   var val = function(v, pre){ return '<b class="mono">' + (pre || '') + zvNum(v) + '</b>'; }, ok = function(v){ return '<b class="mono zv-ok">' + zvNum(v) + '</b>'; };
+  // Strzałki osi maszyny z opisem plus / minus
+  function arrow(p0, p1){
+    var d = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]], L = Math.hypot(d[0], d[1], d[2]), u = [d[0] / L, d[1] / L, d[2] / L];
+    it.push({t:'cyl', p:p0, ax:u, r:0.55, h:L - 5, c:'path'});
+    it.push({t:'cone', p:[p1[0] - u[0] * 5, p1[1] - u[1] * 5, p1[2] - u[2] * 5], ax:u, r:2, h:5, c:'path'});
+  }
+  // Mały kompas osi maszyny (tylny lewy róg) i opisy stron detalu
+  var yaw = -1.2;
+  if (o.m !== 'center' && ax === 'X' && o.side < 0) yaw = -1.95;
+  if (o.m !== 'center' && ax === 'Y' && o.side > 0) yaw = 1.15;
+  var kp = [Math.cos(yaw) > 0 ? -8 : W + 8, Math.sin(yaw) > 0 ? -8 : D + 8, 0];
+  arrow(kp, [kp[0] + 20, kp[1], kp[2]]); arrow(kp, [kp[0], kp[1] + 20, kp[2]]); arrow(kp, [kp[0], kp[1], kp[2] + 20]);
+  lab.push({txt:'X+', p:[kp[0] + 25, kp[1], kp[2]], cls:'zv3p'}); lab.push({txt:'Y+', p:[kp[0], kp[1] + 25, kp[2]], cls:'zv3p'}); lab.push({txt:'Z+', p:[kp[0], kp[1], kp[2] + 25], cls:'zv3p'});
+  lab.push({txt:'strona X−', p:[0, D * 0.55, -H * 0.72], nrm:[-1, 0, 0], cls:'zv3n'}); lab.push({txt:'strona X+', p:[W, D * 0.55, -H * 0.72], nrm:[1, 0, 0], cls:'zv3n'});
+  lab.push({txt:'strona Y− (operator)', p:[W / 2, 0, -H * 0.72], nrm:[0, -1, 0], cls:'zv3n'}); lab.push({txt:'strona Y+', p:[W / 2, D, -H * 0.72], nrm:[0, 1, 0], cls:'zv3n'});
   if (ax === 'Z'){
     var bz = o.b > 0 ? 4 : 0, tool = o.mode === 'tool';
     if (bz) it.push({t:'box', a:[31, 16, 0], b:[49, 34, bz], c:'hole'});
@@ -472,10 +491,10 @@ function zvScene(o){
     }
     probe(pp); origin(org);
     lab.push({n:1, p:[pp[0], pp[1], pp[2] + 30], dx:left ? -14 : 14}); lab.push({n:2, p:org, dx:-14, dy:12});
-    leg.push([1, ax + ' maszynowe (środek kulki Ø' + zvNum(o.d) + ')', val(o.p)]);
+    leg.push([1, ax + ' MASZYNA — kulka Ø' + zvNum(o.d) + ' od strony ' + ax + (left ? '−' : '+'), val(o.p)]);
     leg.push([2, 'Krawędź detalu → ' + (o.wo || 'G54') + ' ' + ax + ' — wpisz', ok(o.res)]);
   }
-  return {st:st, items:it, labels:lab, leg:leg};
+  return {st:st, items:it, labels:lab, leg:leg, yaw:yaw};
 }
 function zeroViz3(container, before, o){
   var n = zvNode();
@@ -484,14 +503,16 @@ function zeroViz3(container, before, o){
   var sc = zvScene(o), key = o.ax + o.m + o.kind + o.side + (o.b > 0) + o.mode;
   ZV.s3.setStock(sc.st, ZV.key === key);
   ZV.s3.setExtras(sc.items);
-  ZV.s3.frameBox([-12, -12, -26], [92, 62, o.ax === 'Z' ? 44 : 30]);
-  if (ZV.key !== key) ZV.s3.reset();
+  ZV.s3.frameBox([-8, -8, -26], [88, 66, o.ax === 'Z' ? 44 : 30]);
+  if (ZV.key !== key){
+    ZV.s3.setCam({yaw:sc.yaw, pitch:0.5, zoom:0.8});
+  }
   ZV.key = key;
   var lb = n.querySelector('.zv3lab');
-  lb.innerHTML = sc.labels.map(function(l){ return '<span class="zv3m">' + l.n + '</span>'; }).join('');
+  lb.innerHTML = sc.labels.map(function(l){ return l.txt ? '<span class="zv3t ' + (l.cls || '') + '">' + l.txt + '</span>' : '<span class="zv3m">' + l.n + '</span>'; }).join('');
   ZV.labels = sc.labels.map(function(l, i){ l.el = lb.children[i]; return l; });
   n.querySelector('.zvleg').innerHTML = sc.leg.map(function(l){ return '<li>' + (l[0] !== '' ? '<span class="zv-n">' + l[0] + '</span>' : '<span></span>') + '<span>' + l[1] + '</span>' + l[2] + '</li>'; }).join('');
-  n.querySelector('.zvnote').textContent = 'Przeciągnij, żeby obrócić; dwa palce — przybliż. Zielony znak to punkt zerowy detalu (X, Y, Z), czerwona linia — krawędź, której dotykasz. Rysunek nie w skali.' + (o.ax === 'Y' ? ' Y− = strona operatora.' : '');
+  n.querySelector('.zvnote').textContent = 'Niebieskie strzałki to kierunki plus osi maszyny: X+ w prawo, Y+ od operatora do tyłu, Z+ w górę. Na ścianach detalu opis, która to strona. Zielony znak to punkt zerowy detalu, czerwona linia — krawędź, której dotykasz. Przeciągnij, żeby obrócić. Rysunek nie w skali.';
   ZV.s3.draw();
 }
 (function(){

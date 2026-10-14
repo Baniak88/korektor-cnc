@@ -268,12 +268,20 @@ function Sim3D(box, opts){
           for (var k = 0; k < 4; k++) v.push(f[k][0], f[k][1], f[k][2], f[4][0], f[4][1], f[4][2], c[0], c[1], c[2]);
           idx.push(base2, base2 + 1, base2 + 2, base2, base2 + 2, base2 + 3);
         });
+      } else if (it.t === 'cone'){
+        var ax2 = it.ax, Bs = basis(ax2), u = Bs[0], w = Bs[1], N2 = 20, tip = [it.p[0] + ax2[0] * it.h, it.p[1] + ax2[1] * it.h, it.p[2] + ax2[2] * it.h], b0 = v.length / 9;
+        for (var q2 = 0; q2 <= N2; q2++){
+          var an = q2 / N2 * Math.PI * 2, nn = [u[0] * Math.cos(an) + w[0] * Math.sin(an), u[1] * Math.cos(an) + w[1] * Math.sin(an), u[2] * Math.cos(an) + w[2] * Math.sin(an)];
+          v.push(it.p[0] + nn[0] * it.r, it.p[1] + nn[1] * it.r, it.p[2] + nn[2] * it.r, nn[0], nn[1], nn[2], c[0], c[1], c[2], tip[0], tip[1], tip[2], nn[0], nn[1], nn[2], c[0], c[1], c[2]);
+        }
+        for (q2 = 0; q2 < N2; q2++){ var bb = b0 + q2 * 2; idx.push(bb, bb + 2, bb + 1); }
       } else if (it.t === 'line') line(lv, it.a, it.b, c);
     });
     upload(bExtra, v, idx); upload(bExtraL, lv.v, lv.i); dirty = true;
   };
   /* Ustaw środek i wielkość widoku na zadany prostopadłościan */
   this.frameBox = function(lo, hi){ tgt = [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2]; span = Math.max(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) * 0.82; dirty = true; };
+  this.eye = function(){ return lastM ? (ROT ? m3v(m3t(ROT), lastM.eye) : lastM.eye) : null; };
   /* Punkt 3D → piksele na płótnie (do etykiet) */
   this.project = function(p){
     if (!lastM) return null;
@@ -336,6 +344,7 @@ function Sim3D(box, opts){
   }
   var raf = 0;
   this.draw = function(){ dirty = true; if (!raf) raf = requestAnimationFrame(frame); };
+  this.setCam = function(c){ CAM0 = {yaw:c.yaw, pitch:c.pitch, zoom:c.zoom}; self.reset(); };
   this.reset = function(){ cam = {yaw:CAM0.yaw, pitch:CAM0.pitch, zoom:CAM0.zoom, pan:[0, 0, 0]}; self.draw(); };
   this.recolor = function(){ colors(); self.meshDirty = true; self.draw(); };
 
