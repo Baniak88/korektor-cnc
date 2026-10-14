@@ -178,7 +178,11 @@ function renderGen(){
   if (r.errors.length) return;
   $('#n-code').value = r.text;
   genView = new SimView($('#n-sim'), {title:'Podgląd ruchów'});
-  genView.set(r.text, ctl());
+  var face = GEN.ops.filter(function(o){ return o.type === 'face'; })[0], sx = parseNum(GEN.sx), sy = parseNum(GEN.sy), sz = parseNum(GEN.sz), stk = {};
+  if (face){ stk.top = parseNum(face.top) || 0; stk.x0 = Math.min(parseNum(face.x0), parseNum(face.x1)); stk.x1 = Math.max(parseNum(face.x0), parseNum(face.x1)); stk.y0 = Math.min(parseNum(face.y0), parseNum(face.y1)); stk.y1 = Math.max(parseNum(face.y0), parseNum(face.y1)); }
+  else if (sx > 0 && sy > 0){ stk.x0 = 0; stk.y0 = 0; stk.x1 = sx; stk.y1 = sy; }
+  if (sz > 0) stk.bot = -sz;
+  genView.set(r.text, ctl(), null, {stock:stk});
 }
 function toolName(op){
   var d = fmtV(op.d);

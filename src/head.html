@@ -13,6 +13,7 @@
   --f-body:"Inter",-apple-system,"SF Pro Text",system-ui,Roboto,sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   --ic-blue:#007AFF; --ic-red:#FF3B30; --ic-orange:#FF9500; --ic-purple:#AF52DE; --ic-green:#34C759; --ic-indigo:#5856D6; --ic-teal:#30B0C7;
+  --sim-bg:#E9E9EE; --sim-stock:#C9CDD3; --sim-cut:#8FB7E8; --sim-bad:#FF3B30; --sim-tool:#FF9500; --sim-path:#007AFF; --sim-rapid:#8E8E93; --sim-future:#B8B8C0; --sim-hole:#B25000;
   --r:14px; --tabbar-h:58px;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
@@ -20,12 +21,14 @@
   --accent:#0A84FF; --accent-ink:#FFFFFF; --accent-soft:#0B2A4A;
   --ok:#30D158; --ok-dot:#30D158; --ok-soft:#0F2E18; --warn:#FF9F0A; --warn-soft:#33240A; --bad:#FF453A; --bad-soft:#3A1310;
   --ic-blue:#0A84FF; --ic-red:#FF453A; --ic-orange:#FF9F0A; --ic-purple:#BF5AF2; --ic-green:#30D158; --ic-indigo:#5E5CE6; --ic-teal:#40C8E0;
+  --sim-bg:#1C1C1E; --sim-stock:#8E9298; --sim-cut:#4F86C6; --sim-bad:#FF453A; --sim-tool:#FF9F0A; --sim-path:#0A84FF; --sim-rapid:#98989F; --sim-future:#48484A; --sim-hole:#FF9F0A;
   --code:#2C2C2E; --mark:#6B5410; --scrim:rgba(0,0,0,.6); --bar:rgba(22,22,24,.88); color-scheme:dark }}
 :root[data-theme="dark"]{
   --bg:#000000; --surface:#1C1C1E; --surface-2:#2C2C2E; --fill:rgba(118,118,128,.24); --ink:#FFFFFF; --muted:#98989F; --line:#38383A;
   --accent:#0A84FF; --accent-ink:#FFFFFF; --accent-soft:#0B2A4A;
   --ok:#30D158; --ok-dot:#30D158; --ok-soft:#0F2E18; --warn:#FF9F0A; --warn-soft:#33240A; --bad:#FF453A; --bad-soft:#3A1310;
   --ic-blue:#0A84FF; --ic-red:#FF453A; --ic-orange:#FF9F0A; --ic-purple:#BF5AF2; --ic-green:#30D158; --ic-indigo:#5E5CE6; --ic-teal:#40C8E0;
+  --sim-bg:#1C1C1E; --sim-stock:#8E9298; --sim-cut:#4F86C6; --sim-bad:#FF453A; --sim-tool:#FF9F0A; --sim-path:#0A84FF; --sim-rapid:#98989F; --sim-future:#48484A; --sim-hole:#FF9F0A;
   --code:#2C2C2E; --mark:#6B5410; --scrim:rgba(0,0,0,.6); --bar:rgba(22,22,24,.88); color-scheme:dark }
 
 *{box-sizing:border-box}
@@ -473,4 +476,21 @@ textarea.prog:focus{outline:none;box-shadow:inset 0 0 0 2px var(--accent)}
 .toast .tundo{pointer-events:auto;margin-left:12px;border:0;background:transparent;color:var(--ic-blue);font:600 15px/1 var(--f-body);padding:4px}
 [hidden]{display:none!important}
 section > *,.group > *,.stepgroup > *,.anscard > *,.result > *,.opbody > *,.calc > *{min-width:0}
+
+/* ===== Symulacja 3D ===== */
+.sim3d{display:grid;gap:8px}
+.sim3d canvas{width:100%;aspect-ratio:320/250;display:block;border-radius:12px;background:var(--sim-bg);touch-action:none;cursor:grab}
+.sim3d canvas:active{cursor:grabbing}
+.sim3dbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.sim3dbar .btn{min-height:34px;padding:6px 12px;font-size:14px}
+.sim3dhint{font-size:12.5px;color:var(--muted);margin:0}
+.lg.lg-stock,.lg.lg-cut,.lg.lg-bad,.lg.lg-tool{border:0}
+.lg-stock{width:14px;height:10px;border-radius:3px;background:var(--sim-stock)}
+.lg-cut{width:14px;height:10px;border-radius:3px;background:var(--sim-cut)}
+.lg-bad{width:14px;height:10px;border-radius:3px;background:var(--sim-bad)}
+.lg-tool{width:10px;height:14px;border-radius:3px;background:var(--sim-tool)}
+.stockbox{display:grid;gap:10px;padding-top:8px}
+.stockbox .fields{grid-template-columns:repeat(3,minmax(0,1fr))}
+.stockbox .num input{min-height:42px;font-size:16px;padding:8px 10px}
+.sim3d-off{padding:24px 12px;text-align:center;color:var(--muted);font-size:14px;background:var(--sim-bg);border-radius:12px}
 </style>

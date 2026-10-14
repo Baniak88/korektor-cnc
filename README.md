@@ -3,7 +3,7 @@
 Aplikacja na telefon dla operatora frezarek CNC (Chiron FZ12, Matsuura MX-330, Quaser MV184 — Fanuc i Sinumerik).
 
 - **Korekcja z pomiaru** — ile zmienić zużycie narzędzia (D/H, ΔR/ΔL), żeby wymiar wszedł w tolerancję, i gdzie to wpisać na sterowaniu.
-- **Program** — podgląd ruchów (animacja toru narzędzia z opisem każdej linii, porównanie przed i po zmianie) oraz poszerzanie, przesuwanie i zamiana wymiarów w G-code z ostrzeżeniami.
+- **Program** — symulacja 3D zbierania materiału (obrót palcem, korekcja promienia, wykrywanie ruchu szybkiego w materiał), podgląd ruchów (animacja toru narzędzia z opisem każdej linii, porównanie przed i po zmianie) oraz poszerzanie, przesuwanie i zamiana wymiarów w G-code z ostrzeżeniami.
 - **AI** — w wersji otwartej w Claude (https://claude.ai/artifact/YVM71eUHrsapEhqtbPeTW3) każdy pyta AI na swoim koncie Claude: odczyt programu ze zdjęcia, sprawdzenie i wyjaśnienie, kod trafia do zakładki Program jednym przyciskiem. W zainstalowanej aplikacji zdjęcie i pytanie wysyłasz przez menu Udostępnij do ChatGPT, Claude albo Gemini, a odpowiedź wraca sama: skopiuj ją w aplikacji AI (albo Udostępnij → Korektor CNC) i wróć — pojawi się w Korektorze z przyciskiem „Wstaw kod do Programu”.
 - **Nowy program** — z rysunku (zdjęcie albo PDF; AI odczytuje wymiary) albo z formularza: planowanie, kieszenie, kontury zewnętrzne, wiercenie, gwintowanie, rozwiercanie. Podgląd ruchów, lista narzędzi, Fanuc i Sinumerik.
 - **AI z kluczem API** — każdy wpisuje swój klucz Claude, ChatGPT albo Gemini; odpowiedzi pojawiają się w aplikacji. Klucz zostaje w telefonie.

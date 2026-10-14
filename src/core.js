@@ -185,20 +185,29 @@ function simWords(code){
   return out;
 }
 function fmtN(v){ var s = (Math.round(v * 1000) / 1000).toString(); return s === '-0' ? '0' : s; }
-function simulateProgram(text, ctl){
+function simulateProgram(text, ctl, opts){
+  opts = opts || {};
   var lines = String(text || '').split(/\r?\n/);
   var pos = {x:null, y:null, z:null}, abs = true, motion = 0, plane = 17, comp = 40, feed = null;
   var cycF = null, cycZ = null, cycR = null, mcall = null;
   var segs = [], steps = [], notes = {}, noteOrder = [];
+  var tool = null, tdia = null, pendT = null, pendD = null, lastDia = null, cycKind = null, ln = 0, zUnknown = false;
+  function addSeg(o){ o.tool = tool; o.td = tdia; o.comp = comp; if (zUnknown) o.zu = true; if (o.type === 'hole') o.cyc = cycKind; segs.push(o); }
   function note(k, t){ if (!notes[k]){ notes[k] = t; noteOrder.push(k); } }
   function pt(p){ return [p.x, p.y, p.z == null ? 0 : p.z]; }
   function hole(ln, x, y, depth, top){
     if (x == null || y == null) return;
-    segs.push({ln:ln, type:'hole', a:[x, y, top == null ? (pos.z == null ? 0 : pos.z) : top], b:[x, y, depth == null ? (pos.z == null ? 0 : pos.z) : depth]});
+    zUnknown = false;
+    addSeg({ln:ln, type:'hole', a:[x, y, top == null ? (pos.z == null ? 0 : pos.z) : top], b:[x, y, depth == null ? (pos.z == null ? 0 : pos.z) : depth]});
   }
   lines.forEach(function(line, idx){
-    var ln = idx + 1;
-    var code = segmentLine(line, ctl).filter(function(p){ return p.t === 'code'; }).map(function(p){ return p.s; }).join(' ').toUpperCase();
+    ln = idx + 1;
+    var parts = segmentLine(line, ctl);
+    var code = parts.filter(function(p){ return p.t === 'code'; }).map(function(p){ return p.s; }).join(' ').toUpperCase();
+    var cmt = parts.filter(function(p){ return p.t !== 'code'; }).map(function(p){ return p.s; }).join(' ');
+    var dm = cmt.match(/(?:Ø|ø|⌀|\bFI|\bDIA\.?|\bD)\s*=?\s*(\d+(?:[.,]\d+)?)/i), lineDia = dm ? parseFloat(dm[1].replace(',', '.')) : null;
+    if (lineDia > 0) lastDia = {d:lineDia, ln:ln}; else lineDia = null;
+    var tName = ctl === 'sinumerik' ? line.match(/(^|[^A-Z_])T\s*=\s*"([^"]*)"/i) : null;
     if (!code.trim()) return;
     var w = simWords(code), g = [], ax = {}, I = null, J = null, R = null, T = null, Ms = [], hasF = false;
     w.forEach(function(p){
@@ -211,6 +220,10 @@ function simulateProgram(text, ctl){
       else if (k === 'T') T = v;
       else if (k === 'M') Ms.push(v);
     });
+    if (tName){ T = tName[2]; var nd = tName[2].match(/(?:D|Ø|FI)\s*_?(\d+(?:[.,]\d+)?)/i); if (nd && !lineDia) lineDia = parseFloat(nd[1].replace(',', '.')); }
+    if (T != null){ pendT = T; pendD = lineDia || (lastDia && ln - lastDia.ln <= 5 ? lastDia.d : null); if (opts.tools && opts.tools[T] > 0) pendD = opts.tools[T]; }
+    if (Ms.indexOf(6) >= 0 || (T != null && tool == null && ctl === 'fanuc' && /M\s*0*6(?!\d)/.test(code))){ tool = pendT; tdia = lineDia || pendD; }
+    else if (T != null && ctl === 'sinumerik' && Ms.indexOf(6) < 0 && tool == null){ /* Sinumerik: T wybiera, M6 zmienia */ }
     var desc = [], moveGiven = ('x' in ax) || ('y' in ax) || ('z' in ax);
     var machineCoords = g.some(function(v){ return v === 53 || v === 28 || v === 30; }) || /(^|[^A-Z_])(SUPA|G153|G74)(?![A-Z_\d])/.test(code);
     if (/G\s*0*68\.2|G\s*0*68(?![\d.])|CYCLE800|TRAORI|G\s*0*43\.4|(^|[^A-Z_])(A?TRANS|A?ROT|A?MIRROR|A?SCALE)(?![A-Z_\d])|G\s*0*5[12](?![\d])/.test(code))
@@ -241,9 +254,11 @@ function simulateProgram(text, ctl){
     if (ctl === 'sinumerik' && /(^|[^A-Z_])MCALL\s*$/.test(code.trim())){ mcall = null; desc.push('Koniec wywołania modalnego cyklu'); }
     if (ctl === 'sinumerik' && sc){
       var pr = sc[3].split(',').map(function(s){ return parseFloat(s); });
-      var cyc = {rfp:isFinite(pr[1]) ? pr[1] : 0, dp:isFinite(pr[3]) ? pr[3] : null, name:'CYCLE8' + sc[2]};
+      var cyc = {rfp:isFinite(pr[1]) ? pr[1] : 0, dp:isFinite(pr[3]) ? pr[3] : null, name:'CYCLE8' + sc[2], kind:80 + (+sc[2])};
+      if (!isFinite(cyc.dp) && isFinite(pr[4])) cyc.dp = cyc.rfp - Math.abs(pr[4]);
+      cycKind = cyc.kind;
       if (sc[1]) mcall = cyc;
-      else { hole(ln, pos.x, pos.y, cyc.dp, cyc.rfp); desc.push('Wiercenie (' + cyc.name + ') w X' + fmtN(pos.x) + ' Y' + fmtN(pos.y) + (cyc.dp != null ? ' do Z' + fmtN(cyc.dp) : '')); }
+      else { zUnknown = false; hole(ln, pos.x, pos.y, cyc.dp, cyc.rfp); desc.push('Wiercenie (' + cyc.name + ') w X' + fmtN(pos.x) + ' Y' + fmtN(pos.y) + (cyc.dp != null ? ' do Z' + fmtN(cyc.dp) : '')); }
     }
 
     if (machineCoords){
@@ -256,7 +271,8 @@ function simulateProgram(text, ctl){
       var rr = w.filter(function(p){ return p[0] === 'R'; })[0]; if (rr) cycR = rr[1];
       if (('x' in ax) || ('y' in ax) || ('z' in ax)){
         var nx = 'x' in ax ? (abs || pos.x == null ? ax.x : pos.x + ax.x) : pos.x, ny = 'y' in ax ? (abs || pos.y == null ? ax.y : pos.y + ax.y) : pos.y;
-        if (pos.z != null && pos.x != null && pos.y != null && (nx !== pos.x || ny !== pos.y)) segs.push({ln:ln, type:'rapid', a:pt(pos), b:[nx, ny, pos.z]});
+        if (pos.z != null && pos.x != null && pos.y != null && (nx !== pos.x || ny !== pos.y)){ zUnknown = false; addSeg({ln:ln, type:'rapid', a:pt(pos), b:[nx, ny, pos.z]}); }
+        cycKind = cycF;
         pos.x = nx; pos.y = ny;
         hole(ln, nx, ny, cycZ, cycR);
         desc.push('Wiercenie (G' + fmtN(cycF) + ') w X' + fmtN(nx) + ' Y' + fmtN(ny) + (cycZ != null ? ' do Z' + fmtN(cycZ) : ''));
@@ -271,6 +287,7 @@ function simulateProgram(text, ctl){
         y: 'y' in ax ? (abs || pos.y == null ? ax.y : pos.y + ax.y) : pos.y,
         z: 'z' in ax ? (abs || pos.z == null ? ax.z : pos.z + ax.z) : pos.z
       };
+      zUnknown = a.z == null && b.z == null;
       if (a.z == null) a.z = b.z;
       if (a.x == null || a.y == null || b.x == null || b.y == null){
         // pozycja startowa nieznana — tylko zapamiętaj, nie rysuj
@@ -293,18 +310,19 @@ function simulateProgram(text, ctl){
           }
         } else { note('arc0', 'Łuk bez R / I J w linii ' + ln + ' — pokazany jako prosta.'); cx = null; }
         if (cx != null){
-          segs.push({ln:ln, type:'arc', a:pt(a), b:pt(b), c:[cx, cy], r:r, cw:cw});
+          addSeg({ln:ln, type:'arc', a:pt(a), b:pt(b), c:[cx, cy], r:r, cw:cw});
           desc.push('Łuk ' + (cw ? 'zgodnie' : 'przeciwnie') + ' z ruchem zegara do' + to + ', promień ' + fmtN(r));
-        } else { segs.push({ln:ln, type:'feed', a:pt(a), b:pt(b)}); desc.push('Ruch do' + to); }
+        } else { addSeg({ln:ln, type:'feed', a:pt(a), b:pt(b)}); desc.push('Ruch do' + to); }
       } else if (motion === 1){
-        segs.push({ln:ln, type:'feed', a:pt(a), b:pt(b)});
+        addSeg({ln:ln, type:'feed', a:pt(a), b:pt(b)});
         desc.push('Skrawanie po prostej do' + to + (feed != null ? ', posuw F' + fmtN(feed) : ''));
       } else {
-        segs.push({ln:ln, type:'rapid', a:pt(a), b:pt(b)});
+        addSeg({ln:ln, type:'rapid', a:pt(a), b:pt(b)});
         desc.push('Ruch szybki do' + to);
       }
       pos = b;
-      if (ctl === 'sinumerik' && mcall && (('x' in ax) || ('y' in ax))){ hole(ln, pos.x, pos.y, mcall.dp, mcall.rfp); desc.push('Wiercenie (' + mcall.name + ')'); }
+      zUnknown = false;
+      if (ctl === 'sinumerik' && mcall && (('x' in ax) || ('y' in ax))){ cycKind = mcall.kind; hole(ln, pos.x, pos.y, mcall.dp, mcall.rfp); desc.push('Wiercenie (' + mcall.name + ')'); }
     }
     if (desc.length) steps.push({ln:ln, text:desc.join(' · '), seg:segs.length});
   });
@@ -663,4 +681,149 @@ function genProgram(spec){
   if (!F) warn('sintool', 'Zmiana narzędzia „T… M6” i D1 — na niektórych maszynach (np. z zarządzaniem narzędziami) narzędzie wywołuje się nazwą T="…" albo własnym podprogramem. Dopasuj do swojej maszyny.');
   if (!(spec.ops || []).length) errors.push({op:0, t:'Dodaj co najmniej jedną operację.'});
   return {text:out.join('\n').replace(/\n{3,}/g, '\n\n'), warns:warns, errors:errors, tools:tools};
+}
+
+
+/* ===== Symulacja 3D: tor środka narzędzia z korekcją promienia i zbieranie materiału ===== */
+/* Dla odcinków z G41/G42 dopisuje s.cpath = [[x,y,z]...] — tor środka freza przesunięty o promień.
+   Rogi wypukłe: łuk wokół narożnika; wklęsłe: przecięcie torów. Zwraca listę uwag. */
+function compPaths(segs, defD){
+  var notes = [], i = 0;
+  function rad(s){ return ((s.td > 0 ? s.td : defD) || 10) / 2; }
+  while (i < segs.length){
+    var s0 = segs[i];
+    if (!(s0.comp === 41 || s0.comp === 42) || s0.type === 'hole' || s0.zu){ i++; continue; }
+    var j = i;
+    while (j + 1 < segs.length && segs[j + 1].comp === s0.comp && segs[j + 1].type !== 'hole' && segs[j + 1].tool === s0.tool) j++;
+    var sg = s0.comp === 41 ? 1 : -1, r = rad(s0);
+    // punkty konturu (od końca wejścia)
+    var P = [{x:s0.b[0], y:s0.b[1], z:s0.b[2], si:i}];
+    for (var k = i + 1; k <= j; k++){
+      var s = segs[k];
+      if (s.type === 'arc'){
+        var inside = (s.cw ? -1 : 1) * sg > 0;
+        if (inside && s.r - r < -1e-6) notes.push('Linia ' + s.ln + ': promień łuku R' + fmtN(s.r) + ' mniejszy niż promień freza — na maszynie będzie alarm korekcji.');
+        arcPoints(s).slice(1).forEach(function(p){ P.push({x:p[0], y:p[1], z:p[2], si:k}); });
+      } else P.push({x:s.b[0], y:s.b[1], z:s.b[2], si:k});
+    }
+    // usuń punkty bez ruchu w XY (zostaw zmianę Z na poprzednim punkcie)
+    var Q = [P[0]];
+    for (var q = 1; q < P.length; q++){
+      var L = Q[Q.length - 1];
+      if (Math.hypot(P[q].x - L.x, P[q].y - L.y) < 1e-7){ Q.push({x:L.x, y:L.y, z:P[q].z, si:P[q].si, zonly:true}); }
+      else Q.push(P[q]);
+    }
+    var pieces = [];
+    for (q = 1; q < Q.length; q++){
+      if (Q[q].zonly) continue;
+      var a = Q[q - 1], b = Q[q], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
+      var tx = dx / d, ty = dy / d, nx = -ty * sg * r, ny = tx * sg * r;
+      pieces.push({a:a, b:b, t:[tx, ty], n:[nx, ny], si:b.si});
+    }
+    var out = [];
+    function add(x, y, z, si){ out.push({p:[x, y, z], si:si}); }
+    if (pieces.length){
+      var p0 = pieces[0];
+      add(p0.a.x + p0.n[0], p0.a.y + p0.n[1], p0.a.z, p0.si);
+      for (q = 0; q < pieces.length; q++){
+        var A = pieces[q], B = pieces[q + 1];
+        if (!B){ add(A.b.x + A.n[0], A.b.y + A.n[1], A.b.z, A.si); break; }
+        var cr = A.t[0] * B.t[1] - A.t[1] * B.t[0], dot = A.t[0] * B.t[0] + A.t[1] * B.t[1], vx = A.b.x, vy = A.b.y, vz = A.b.z;
+        if (Math.abs(cr) < 1e-9 && dot > 0){ add(vx + A.n[0], vy + A.n[1], vz, A.si); continue; }
+        if (sg * cr < 0 || dot < -0.999){
+          // róg wypukły: łuk wokół narożnika
+          add(vx + A.n[0], vy + A.n[1], vz, A.si);
+          var a0 = Math.atan2(A.n[1], A.n[0]), a1 = Math.atan2(B.n[1], B.n[0]), sw = a1 - a0;
+          if (sg > 0){ while (sw > 0) sw -= 2 * Math.PI; } else { while (sw < 0) sw += 2 * Math.PI; }
+          var nn = Math.max(1, Math.ceil(Math.abs(sw) / (Math.PI / 18)));
+          for (var m = 1; m <= nn; m++){ var an = a0 + sw * m / nn; add(vx + r * Math.cos(an), vy + r * Math.sin(an), vz, B.si); }
+        } else {
+          // róg wklęsły: przecięcie przesuniętych prostych
+          var ax0 = A.a.x + A.n[0], ay0 = A.a.y + A.n[1], bx0 = B.a.x + B.n[0], by0 = B.a.y + B.n[1];
+          var den = A.t[0] * B.t[1] - A.t[1] * B.t[0], tt = ((bx0 - ax0) * B.t[1] - (by0 - ay0) * B.t[0]) / den;
+          var ix = ax0 + A.t[0] * tt, iy = ay0 + A.t[1] * tt;
+          if (Math.hypot(ix - vx, iy - vy) > r * 6){ ix = vx + A.n[0]; iy = vy + A.n[1]; }
+          add(ix, iy, vz, A.si);
+        }
+      }
+    } else add(s0.b[0], s0.b[1], s0.b[2], i);
+    // rozdziel tor na odcinki programu
+    var prev = s0.a.slice();
+    var startP = out[0].p;
+    s0.cpath = [prev, [startP[0], startP[1], s0.b[2]]];
+    prev = s0.cpath[1];
+    var byS = {};
+    out.forEach(function(o, idx){ if (idx === 0) return; (byS[o.si] = byS[o.si] || []).push(o.p); });
+    for (k = i + 1; k <= j; k++){
+      var sk = segs[k], pts = byS[k] || [];
+      if (!pts.length) pts = [[prev[0], prev[1], sk.b[2]]];
+      sk.cpath = [prev].concat(pts);
+      prev = sk.cpath[sk.cpath.length - 1];
+    }
+    // wyjście z korekcji (G40)
+    var nx2 = segs[j + 1];
+    if (nx2 && nx2.comp === 40 && nx2.type !== 'hole' && nx2.tool === s0.tool) nx2.cpath = [prev, nx2.b.slice()];
+    i = j + 1;
+  }
+  return notes;
+}
+function segPath(s){
+  if (s.cpath) return s.cpath;
+  if (s.type === 'arc') return arcPoints(s);
+  return [s.a, s.b];
+}
+
+/* Materiał jako mapa wysokości (Z-map). */
+function makeStock(x0, y0, x1, y1, top, bot, maxCells){
+  var w = Math.max(x1 - x0, 1), h = Math.max(y1 - y0, 1), cell = Math.max(w, h) / (maxCells || 200);
+  var nx = Math.max(2, Math.ceil(w / cell) + 1), ny = Math.max(2, Math.ceil(h / cell) + 1);
+  var z = new Float32Array(nx * ny), mark = new Uint8Array(nx * ny);
+  for (var i = 0; i < z.length; i++) z[i] = top;
+  return {x0:x0, y0:y0, cell:cell, nx:nx, ny:ny, top:top, bot:bot, z:z, mark:mark};
+}
+/* Przejazd płaskiego (albo stożkowego — wiertło 118°) narzędzia po odcinku. Zwraca liczbę komórek, w które wjechał ruch szybki. */
+function cutPiece(st, a, b, r, opt){
+  opt = opt || {};
+  var minx = Math.min(a[0], b[0]) - r, maxx = Math.max(a[0], b[0]) + r, miny = Math.min(a[1], b[1]) - r, maxy = Math.max(a[1], b[1]) + r;
+  var i0 = Math.max(0, Math.floor((minx - st.x0) / st.cell)), i1 = Math.min(st.nx - 1, Math.ceil((maxx - st.x0) / st.cell));
+  var j0 = Math.max(0, Math.floor((miny - st.y0) / st.cell)), j1 = Math.min(st.ny - 1, Math.ceil((maxy - st.y0) / st.cell));
+  if (i0 > i1 || j0 > j1) return 0;
+  var dx = b[0] - a[0], dy = b[1] - a[1], ll = dx * dx + dy * dy, r2 = r * r, hits = 0, cone = opt.cone ? 0.6 : 0, lowest = Math.min(a[2], b[2]);
+  if (lowest >= st.top) return 0;
+  for (var j = j0; j <= j1; j++){
+    var py = st.y0 + j * st.cell;
+    for (var i = i0; i <= i1; i++){
+      var px = st.x0 + i * st.cell, t = ll > 1e-12 ? ((px - a[0]) * dx + (py - a[1]) * dy) / ll : 0;
+      if (t < 0) t = 0; else if (t > 1) t = 1;
+      var qx = a[0] + dx * t - px, qy = a[1] + dy * t - py, d2 = qx * qx + qy * qy;
+      if (d2 > r2) continue;
+      var zt = ll > 1e-12 ? a[2] + (b[2] - a[2]) * t : lowest;
+      if (cone) zt += Math.sqrt(d2) * cone;
+      var k = j * st.nx + i;
+      if (zt < st.z[k] - 1e-6){
+        if (opt.rapid && st.z[k] - zt > 0.05){ st.mark[k] = 2; hits++; }
+        else if (st.mark[k] !== 2) st.mark[k] = 1;
+        st.z[k] = Math.max(zt, st.bot);
+      }
+    }
+  }
+  return hits;
+}
+/* Zbierz materiał odcinkami segs[from..to). Zwraca listę linii z ruchem szybkim w materiale. */
+function cutSegs(st, segs, from, to, defD){
+  var bad = [];
+  for (var n = from; n < to; n++){
+    var s = segs[n];
+    if (s.zu) continue;
+    var r = ((s.td > 0 ? s.td : defD) || 10) / 2, hits = 0;
+    if (s.type === 'hole'){
+      var cone = [73, 81, 82, 83].indexOf(s.cyc) >= 0;
+      hits = cutPiece(st, [s.a[0], s.a[1], s.b[2]], [s.b[0], s.b[1], s.b[2]], r, {cone:cone});
+      continue;
+    }
+    var P = segPath(s);
+    for (var q = 1; q < P.length; q++) hits += cutPiece(st, P[q - 1], P[q], r, {rapid:s.type === 'rapid'});
+    if (hits && bad.indexOf(s.ln) < 0) bad.push(s.ln);
+  }
+  return bad;
 }

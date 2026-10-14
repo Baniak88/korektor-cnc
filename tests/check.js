@@ -10,8 +10,8 @@ const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map(m =
 scripts.forEach((s, i) => { try { new vm.Script(s, { filename: 'script' + i + '.js' }); } catch (e) { console.error('Błąd składni w skrypcie ' + i); throw e; } });
 
 const core = html.match(/<script id="core">([\s\S]*?)<\/script>/)[1];
-const ctx = {}; vm.createContext(ctx); vm.runInContext(core + '\nthis.calcCorrection = calcCorrection; this.processProgram = processProgram; this.simulateProgram = simulateProgram; this.arcPoints = arcPoints; this.calcZero = calcZero; this.calcToolLen = calcToolLen; this.genProgram = genProgram; this.tapInfo = tapInfo; this.cutData = cutData; this.holePattern = holePattern;', ctx);
-const { calcCorrection, processProgram, simulateProgram, arcPoints, calcZero, calcToolLen, genProgram, tapInfo, cutData, holePattern } = ctx;
+const ctx = {}; vm.createContext(ctx); vm.runInContext(core + '\nthis.calcCorrection = calcCorrection; this.processProgram = processProgram; this.simulateProgram = simulateProgram; this.arcPoints = arcPoints; this.calcZero = calcZero; this.calcToolLen = calcToolLen; this.genProgram = genProgram; this.tapInfo = tapInfo; this.cutData = cutData; this.holePattern = holePattern; this.compPaths = compPaths; this.makeStock = makeStock; this.cutSegs = cutSegs;', ctx);
+const { calcCorrection, processProgram, simulateProgram, arcPoints, calcZero, calcToolLen, genProgram, tapInfo, cutData, holePattern, compPaths, makeStock, cutSegs } = ctx;
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, a + ' != ' + b);
 
 // Korekcja: otwór Ø20 H7 zmierzony 19.998 → celujemy w środek 20.0105 → ΔR −0.006
@@ -124,4 +124,27 @@ assert.ok(g.errors.some(e => /Promień naroża/.test(e.t)));
 
 g = genProgram({ ctl: 'fanuc', ops: [{ type: 'holes', kind: 'drill', T: 3, d: 5, S: 3000, F: 300, depth: -10, pattern: { kind: 'list', pts: [[0, 0]] } }, { type: 'holes', kind: 'drill', T: 3, d: 8, S: 2000, F: 300, depth: -10, pattern: { kind: 'list', pts: [[5, 0]] } }] });
 assert.ok(g.warns.some(w => /T3 ma w różnych/.test(w.t)));
+
+// 3D: średnica narzędzia z komentarza, korekcja G41 na zewnątrz prostokąta, zbieranie materiału
+let k3 = simulateProgram('T5 M06 (FREZ D10)\nG00 X-10. Y-10. Z2.\nG01 Z-3. F200\nG41 D5 X0 Y0 F600\nY30.\nX40.\nY0\nX0\nG40 X-10. Y-10.\nG00 Z50.', 'fanuc');
+assert.strictEqual(k3.segs[1].td, 10); assert.strictEqual(k3.segs[1].tool, 5);
+assert.deepStrictEqual(JSON.parse(JSON.stringify(compPaths(k3.segs, 10))), []);
+let cp = k3.segs.find(x => x.ln === 5).cpath; near(cp[0][0], -5); near(cp[cp.length - 1][0], -5); near(cp[cp.length - 1][1], 30);
+let cp6 = k3.segs.find(x => x.ln === 6).cpath; near(cp6[cp6.length - 1][0], 40); near(cp6[cp6.length - 1][1], 35);
+let stk = makeStock(-20, -20, 60, 50, 0, -20, 160);
+assert.deepStrictEqual(JSON.parse(JSON.stringify(cutSegs(stk, k3.segs, 0, k3.segs.length, 10))), []);
+const hz = (x, y) => stk.z[Math.round((y - stk.y0) / stk.cell) * stk.nx + Math.round((x - stk.x0) / stk.cell)];
+near(hz(20, 15), 0); near(hz(20, 33), -3); near(hz(-6, 15), -3); near(hz(-15, 15), 0);
+// G41 wewnątrz kieszeni: róg wklęsły = przecięcie torów
+let k4 = simulateProgram('G0 X20 Y15 Z2\nG1 Z-2 F100\nG41 G1 X20 Y5\nX35\nY25\nX5\nY5\nX20\nG40 G1 X20 Y15', 'fanuc');
+compPaths(k4.segs, 6); let c4 = k4.segs.find(x => x.ln === 4).cpath; near(c4[c4.length - 1][0], 32); near(c4[c4.length - 1][1], 8);
+// ruch szybki w materiał
+let k5 = simulateProgram('T1 M06 (D10)\nG0 X0 Y0 Z5\nG0 Z-2\nG0 Z5', 'fanuc');
+compPaths(k5.segs, 10);
+assert.deepStrictEqual(JSON.parse(JSON.stringify(cutSegs(makeStock(-20, -20, 20, 20, 0, -10, 80), k5.segs, 0, k5.segs.length, 10))), [3]);
+// wiercenie: stożek wiertła
+let k6 = simulateProgram('T3 M06 (WIERTLO D10)\nG0 X0 Y0 Z20\nG98 G81 X0 Y0 Z-10 R2 F100\nG80', 'fanuc');
+let st6 = makeStock(-10, -10, 10, 10, 0, -20, 40); cutSegs(st6, k6.segs, 0, k6.segs.length, 10);
+const h6 = (x, y) => st6.z[Math.round((y - st6.y0) / st6.cell) * st6.nx + Math.round((x - st6.x0) / st6.cell)];
+near(h6(0, 0), -10); assert.ok(h6(4, 0) > -8 && h6(4, 0) < -7); near(h6(7, 0), 0);
 console.log('OK — ' + scripts.length + ' skryptów, testy logiki przeszły');
