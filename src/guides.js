@@ -211,25 +211,37 @@ function zeroCalc(box){
   var c = ctl();
   function save(){ store.set('zc', ZC); }
   function render(){
-    var isZ = ZC.ax === 'Z';
-    var h = '<div class="seg" id="zc-ax">' + ['X','Y','Z'].map(function(a){ return '<button type="button" data-v="' + a + '" aria-pressed="' + (ZC.ax === a) + '">Oś ' + a + '</button>'; }).join('') + '</div>';
+    var isZ = ZC.ax === 'Z', A = ZC.ax, F = c === 'fanuc';
+    var read = F ? 'POS → [WSZYSTKO] / [ALL] → kolumna <b>MASZYNA</b>' : 'okno pozycji przełączone na <b>MKS</b>';
+    var how = isZ ? ['Dotknij narzędziem (albo przez płytkę) górnej powierzchni detalu.', 'Odczytaj <b>Z</b> na sterowaniu: ' + read + '.', 'Wpisz Z i długość narzędzia poniżej — dostaniesz liczbę do G54 Z.']
+      : ZC.m === 'center' ? ['Dotknij kulką ściany ' + (ZC.kind === 'hole' ? 'otworu' : 'czopu') + ' z jednej strony w osi ' + A + ' i odczytaj <b>' + A + '</b>: ' + read + '.', 'Dotknij przeciwnej ściany i odczytaj drugą liczbę.', 'Wpisz obie liczby poniżej — dostaniesz środek do G54 ' + A + '.']
+      : ['Dotknij kulką (trzpieniem) krawędzi detalu.', 'Odczytaj <b>' + A + '</b> na sterowaniu: ' + read + '. To pozycja w chwili dotknięcia.', 'Wpisz ją poniżej i wybierz, z której strony była kulka — dostaniesz liczbę do G54 ' + A + '.'];
+    var h = '<ol class="zhow">' + how.map(function(t){ return '<li>' + t + '</li>'; }).join('') + '</ol>';
+    h += '<div class="seg" id="zc-ax">' + ['X','Y','Z'].map(function(a){ return '<button type="button" data-v="' + a + '" aria-pressed="' + (ZC.ax === a) + '">Oś ' + a + '</button>'; }).join('') + '</div>';
+    if (!isZ) h += '<div class="seg" id="zc-m"><button type="button" data-v="edge" aria-pressed="' + (ZC.m === 'edge') + '">Krawędź</button><button type="button" data-v="center" aria-pressed="' + (ZC.m === 'center') + '">Środek otworu / czopu</button></div>';
+    h += '<div id="zc-vizslot"></div>';
+    var posLab = function(t){ return t + ' <button type="button" class="q" data-term="poz-masz" aria-label="Co to jest pozycja maszynowa?">?</button>'; };
     if (!isZ){
-      h += '<div class="seg" id="zc-m"><button type="button" data-v="edge" aria-pressed="' + (ZC.m === 'edge') + '">Krawędź</button><button type="button" data-v="center" aria-pressed="' + (ZC.m === 'center') + '">Środek (2 dotknięcia)</button></div>';
       if (ZC.m === 'edge'){
-        h += '<div class="fields">' + numField('zc-p', 'Pozycja maszynowa ' + ZC.ax, ZC.p, 'przy dotknięciu krawędzi') + numField('zc-d', 'Średnica trzpienia / kulki', ZC.d) + '</div>';
-        h += '<div class="field"><span class="lab">Z której strony dotykasz krawędzi?</span><div class="seg" id="zc-side"><button type="button" data-v="-1" aria-pressed="' + (ZC.side == -1) + '">Od strony ' + ZC.ax + '−</button><button type="button" data-v="1" aria-pressed="' + (ZC.side == 1) + '">Od strony ' + ZC.ax + '+</button></div>' +
-          '<span class="hint">' + (ZC.ax === 'X' ? 'X− = narzędzie jest z lewej strony krawędzi' : 'Y− = narzędzie zwykle od strony operatora (z przodu)') + '</span></div>';
-        h += '<div class="fields">' + numField('zc-ev', 'Krawędź ma mieć w programie ' + ZC.ax + ' =', ZC.ev, 'zwykle 0') + '</div>';
+        var sides = A === 'X' ? ['Kulka z lewej (X−)', 'Kulka z prawej (X+)'] : ['Kulka z przodu (Y−)', 'Kulka z tyłu (Y+)'];
+        h += '<div class="field"><span class="lab">Gdzie była kulka względem detalu?</span><div class="seg" id="zc-side"><button type="button" data-v="-1" aria-pressed="' + (ZC.side == -1) + '">' + sides[0] + '</button><button type="button" data-v="1" aria-pressed="' + (ZC.side == 1) + '">' + sides[1] + '</button></div>' +
+          (A === 'Y' ? '<span class="hint">Przód = strona operatora.</span>' : '') + '</div>';
+        h += '<div class="field"><label class="lab" for="zc-p">' + posLab(A + ' z ekranu MASZYNA') + '</label><div class="num big"><input id="zc-p" inputmode="decimal" autocomplete="off" placeholder="np. −412,500" value="' + esc(ZC.p) + '"><button type="button" class="pm" data-for="zc-p" aria-label="Zmień znak">±</button></div><span class="hint">Pozycja w chwili dotknięcia krawędzi, z minusem jeśli jest.</span></div>';
+        h += '<div class="fields">' + numField('zc-d', 'Średnica kulki / trzpienia', ZC.d, 'np. 10 dla trzpienia Ø10') + '</div>';
       } else {
-        h += '<div class="fields">' + numField('zc-p', 'Pozycja 1 (maszynowa)', ZC.p) + numField('zc-p2', 'Pozycja 2 (maszynowa)', ZC.p2) + numField('zc-d', 'Średnica trzpienia / kulki', ZC.d) + numField('zc-ev', 'Środek ma mieć ' + ZC.ax + ' =', ZC.ev, 'zwykle 0') + '</div>';
         h += '<div class="seg" id="zc-kind"><button type="button" data-v="hole" aria-pressed="' + (ZC.kind === 'hole') + '">Otwór (od środka)</button><button type="button" data-v="boss" aria-pressed="' + (ZC.kind === 'boss') + '">Czop (z zewnątrz)</button></div>';
+        h += '<div class="fields">' + numField('zc-p', A + ' MASZYNA — dotknięcie 1', ZC.p, 'np. −425,000') + numField('zc-p2', A + ' MASZYNA — dotknięcie 2', ZC.p2, 'druga strona') + '</div>';
+        h += '<div class="fields">' + numField('zc-d', 'Średnica kulki / trzpienia', ZC.d) + '</div>';
       }
     } else {
-      h += '<div class="fields">' + numField('zc-p', 'Z maszynowe przy dotknięciu', ZC.p, 'kolumna MASZYNA / MKS') + numField('zc-L', 'Długość narzędzia (geometria)', ZC.L, c === 'fanuc' ? 'z tabeli H' : 'z listy narzędzi') +
-        numField('zc-b', 'Płytka / wałeczek pod narzędziem', ZC.b, '0 gdy dotykasz bezpośrednio') + numField('zc-ev', 'Powierzchnia ma mieć Z =', ZC.ev, 'zwykle 0') + '</div>';
+      h += '<div class="field"><label class="lab" for="zc-p">' + posLab('Z z ekranu MASZYNA') + '</label><div class="num big"><input id="zc-p" inputmode="decimal" autocomplete="off" placeholder="np. −400,000" value="' + esc(ZC.p) + '"><button type="button" class="pm" data-for="zc-p" aria-label="Zmień znak">±</button></div><span class="hint">Pozycja w chwili dotknięcia powierzchni.</span></div>';
+      h += '<div class="fields">' + numField('zc-L', 'Długość narzędzia', ZC.L, F ? 'z tabeli korekcji H (geometria)' : 'z listy narzędzi') + numField('zc-b', 'Płytka pod narzędziem', ZC.b, '0 gdy bez płytki') + '</div>';
     }
-    h += '<div class="field"><label class="lab" for="zc-wo">Układ</label><div class="num"><input id="zc-wo" class="txt" value="' + esc(ZC.wo) + '" autocapitalize="characters"></div></div>';
     h += '<div id="zc-out"></div>';
+    var evOn = parseNum(ZC.ev) ? true : false;
+    h += '<details class="more"' + (evOn || ZC.wo !== 'G54' ? ' open' : '') + '><summary>Więcej: inny układ niż G54, przesunięcie bazy</summary><div class="group" style="padding-top:8px"><div class="fields">' +
+      numField('zc-ev', (isZ ? 'Powierzchnia' : ZC.m === 'center' ? 'Środek' : 'Krawędź') + ' ma mieć w programie ' + A + ' =', ZC.ev, 'zostaw 0, jeśli baza programu jest na ' + (isZ ? 'tej powierzchni' : ZC.m === 'center' ? 'środku' : 'tej krawędzi')) +
+      '<div class="field"><label class="lab" for="zc-wo">Układ</label><div class="num"><input id="zc-wo" class="txt" value="' + esc(ZC.wo) + '" autocapitalize="characters"></div><span class="hint">G54…G59, G54.1 P…</span></div></div></div></details>';
     box.innerHTML = h;
     calc();
   }
@@ -239,7 +251,8 @@ function zeroCalc(box){
     else if (r && ZC.m === 'center') out = calcResult(esc(ZC.wo) + ' ' + ZC.ax + ' — wpisz', f4(r.value), 'Środek w ' + ZC.ax + ' maszynowym ' + f4(r.at) + (r.size != null ? '. Zmierzony ' + (ZC.kind === 'hole' ? 'otwór' : 'czop') + ': ' + f4(r.size) + ' mm.' : '.'));
     else if (r) out = calcResult(esc(ZC.wo) + ' ' + ZC.ax + ' — wpisz', f4(r.value), 'Krawędź jest w ' + ZC.ax + ' maszynowym ' + f4(r.at) + ' (pozycja ' + (ZC.side < 0 ? '+' : '−') + ' promień ' + f4(parseNum(ZC.d) / 2) + ').');
     else if (ZC.ax === 'Z' && isFinite(parseNum(ZC.p))) out = '<p class="fine">Wpisz długość narzędzia, którym dotykasz. Jeśli w Twoim zakładzie długość = odległość od G54 (G54 Z = 0), użyj przewodnika „Ustaw długość narzędzia”.</p>';
-    if (!out) out = '<p class="fine">Wpisz pozycję maszynową — wynik pojawi się tutaj.</p>';
+    if (!out) out = '<p class="fine zwait">Wpisz pozycję z ekranu MASZYNA — tu pojawi się liczba do wpisania w ' + esc(ZC.wo) + '.</p>';
+    else if (parseNum(ZC.ev)) out += '<p class="note-warn">Uwaga: liczysz z przesunięciem — ' + (ZC.ax === 'Z' ? 'powierzchnia' : 'baza') + ' ma mieć ' + ZC.ax + ' = ' + esc(ZC.ev) + ' (pole w „Więcej”). Jeśli baza programu jest na ' + (ZC.ax === 'Z' ? 'tej powierzchni' : 'krawędzi / środku') + ', wpisz tam 0.</p>';
     box.querySelector('#zc-out').innerHTML = out;
   }
   box.addEventListener('click', function(e){
@@ -488,7 +501,8 @@ function zeroViz3(container, before, o){
     function upd(){
       var out = box.querySelector('#zc-out'); if (!out) return;
       var r = calcZero(ZC) || {};
-      zeroViz3(out.parentNode, out, {ax:ZC.ax, m:ZC.m, side:+ZC.side, d:parseNum(ZC.d), p:parseNum(ZC.p), p2:parseNum(ZC.p2), L:parseNum(ZC.L), b:parseNum(ZC.b) || 0, wo:esc(ZC.wo), kind:ZC.kind, res:r.value, size:r.size});
+      var slot = box.querySelector('#zc-vizslot');
+      zeroViz3(slot.parentNode, slot, {ax:ZC.ax, m:ZC.m, side:+ZC.side, d:parseNum(ZC.d), p:parseNum(ZC.p), p2:parseNum(ZC.p2), L:parseNum(ZC.L), b:parseNum(ZC.b) || 0, wo:esc(ZC.wo), kind:ZC.kind, res:r.value, size:r.size});
     }
     box.addEventListener('input', function(){ setTimeout(upd, 0); });
     box.addEventListener('click', function(){ setTimeout(upd, 0); });

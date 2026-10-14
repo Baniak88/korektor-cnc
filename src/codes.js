@@ -182,6 +182,7 @@ var CODES = [
 
 /* Słowniczek: [id, pojęcie, wyjaśnienie] */
 var GLOSSARY = [
+  ['poz-masz','Pozycja maszynowa (MASZYNA / MKS)','Położenie osi liczone od zera maszyny, a nie od detalu. Nie zmienia się po zmianie G54. Fanuc: POS → [WSZYSTKO] / [ALL], kolumna MASZYNA (MACHINE). Sinumerik: w oknie pozycji przełącz na MKS. Tę liczbę wpisujesz do kalkulatora punktu zerowego, a wynik do tabeli G54.'],
   ['zuzycie','Zużycie (Wear, ΔR, ΔL)','Mała poprawka do wymiaru narzędzia. Tu wpisujesz korekty z pomiaru detalu. Sterowanie liczy: geometria + zużycie. Ujemne zużycie promienia = frez „chudszy”, zbiera więcej materiału. Ujemne zużycie długości = narzędzie „krótsze”, schodzi niżej.'],
   ['geometria','Geometria narzędzia','Zmierzony wymiar narzędzia: długość (z pomiaru na maszynie lub urządzeniu nastawczym) i promień. Przy korektach z pomiaru detalu zwykle jej nie zmieniasz — od tego jest zużycie.'],
   ['kor-promienia','Korekcja promienia (D)','Promień freza, o który sterowanie odsuwa tor od konturu przy G41/G42. Zmiana zużycia promienia przesuwa wszystkie ścianki konturu naraz, każdą o tę samą wartość. Dlatego otwór lub czop zmienia się o 2× korektę.'],
