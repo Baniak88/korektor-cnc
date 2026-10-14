@@ -574,4 +574,12 @@ section > *,.group > *,.stepgroup > *,.anscard > *,.result > *,.opbody > *,.calc
 .ditem svg{width:22px;height:22px;fill:none;stroke:var(--accent);stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 .ditem[aria-current="page"]{background:var(--accent-soft);font-weight:600;color:var(--accent)}
 @media (prefers-reduced-motion: reduce){.drawer{animation:none}}
+
+/* Rysunek 3D w kalkulatorach */
+.zv3{position:relative}
+.zv3 canvas{width:100%;aspect-ratio:320/230;display:block;border-radius:12px;background:var(--sim-bg);touch-action:none}
+.zv3lab{position:absolute;inset:0;pointer-events:none;overflow:hidden;border-radius:12px}
+.zv3m{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font:700 12px/22px var(--f-body);text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.25)}
+.zv3reset{position:absolute;right:8px;top:8px;width:36px;height:36px;border-radius:10px;border:0;background:var(--surface);color:var(--accent);display:grid;place-items:center;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+.zv3reset svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 </style>

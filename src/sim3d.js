@@ -47,7 +47,7 @@ function Sim3D(box, opts){
   var uMo = gl.getUniformLocation(pr, 'Mo'), I4 = new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]), MO = I4, ROT = null;
   var uM = gl.getUniformLocation(pr, 'M'), uL1 = gl.getUniformLocation(pr, 'L1'), uL2 = gl.getUniformLocation(pr, 'L2'), uF = gl.getUniformLocation(pr, 'uFlat');
   function mk(){ return {v:gl.createBuffer(), i:gl.createBuffer(), n:0, big:false}; }
-  var bMesh = mk(), bLines = mk(), bCur = mk(), bTool = mk(), bMark = mk(), bTable = mk();
+  var bMesh = mk(), bLines = mk(), bCur = mk(), bTool = mk(), bMark = mk(), bTable = mk(), bExtra = mk(), bExtraL = mk();
   function upload(b, V, I){
     var verts = V.a ? V.a.subarray(0, V.n) : new Float32Array(V), nv = verts.length / 9;
     gl.bindBuffer(gl.ARRAY_BUFFER, b.v); gl.bufferData(gl.ARRAY_BUFFER, verts, gl.DYNAMIC_DRAW);
@@ -67,7 +67,8 @@ function Sim3D(box, opts){
     gl.drawElements(mode, b.n, b.big ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
   }
 
-  var st = null, col = {}, cam = {yaw:-0.95, pitch:0.62, zoom:1, pan:[0, 0, 0]}, tgt = [0, 0, 0], span = 100, dirty = true, lastBuild = 0;
+  var CAM0 = opts.cam || {yaw:-0.95, pitch:0.62, zoom:1};
+  var st = null, col = {}, cam = {yaw:CAM0.yaw, pitch:CAM0.pitch, zoom:CAM0.zoom, pan:[0, 0, 0]}, tgt = [0, 0, 0], span = 100, dirty = true, lastBuild = 0;
   function colors(){
     col = {bg:cssColor('--sim-bg', [.91,.91,.93]), stock:cssColor('--sim-stock', [.79,.8,.83]), cut:cssColor('--sim-cut', [.56,.72,.91]), bad:cssColor('--sim-bad', [1,.23,.19]),
       tool:cssColor('--sim-tool', [1,.58,0]), path:cssColor('--sim-path', [0,.48,1]), rapid:cssColor('--sim-rapid', [.56,.56,.58]), future:cssColor('--sim-future', [.72,.72,.75]),
@@ -245,6 +246,41 @@ function Sim3D(box, opts){
     cylinder(v, idx, hp, ax, Math.max(r * 1.6, span * 0.035), span * 0.07, col.rapid, true);
     upload(bTool, v, idx); dirty = true;
   };
+  /* Dodatkowe bryły (kalkulatory): walce, kule, prostopadłościany, linie. Kolor: nazwa z palety symulacji. */
+  this.setExtras = function(items){
+    var v = [], idx = [], lv = {v:[], i:[]};
+    function cc(c){ return Array.isArray(c) ? c : (col[c] || col.stock); }
+    items.forEach(function(it){
+      var c = cc(it.c);
+      if (it.t === 'cyl') cylinder(v, idx, it.p, it.ax || [0, 0, 1], it.r, it.h, c, true);
+      else if (it.t === 'sph'){
+        var N = 18, M = 12, base = v.length / 9;
+        for (var a = 0; a <= M; a++) for (var b = 0; b <= N; b++){
+          var th = a / M * Math.PI, ph = b / N * Math.PI * 2, n = [Math.sin(th) * Math.cos(ph), Math.sin(th) * Math.sin(ph), Math.cos(th)];
+          v.push(it.p[0] + n[0] * it.r, it.p[1] + n[1] * it.r, it.p[2] + n[2] * it.r, n[0], n[1], n[2], c[0], c[1], c[2]);
+        }
+        for (a = 0; a < M; a++) for (b = 0; b < N; b++){ var q = base + a * (N + 1) + b; idx.push(q, q + N + 1, q + 1, q + 1, q + N + 1, q + N + 2); }
+      } else if (it.t === 'box'){
+        var x0 = it.a[0], y0 = it.a[1], z0 = it.a[2], x1 = it.b[0], y1 = it.b[1], z1 = it.b[2];
+        [[[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1],[0,0,1]], [[x0,y1,z0],[x1,y1,z0],[x1,y0,z0],[x0,y0,z0],[0,0,-1]], [[x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1],[0,-1,0]],
+         [[x1,y1,z0],[x0,y1,z0],[x0,y1,z1],[x1,y1,z1],[0,1,0]], [[x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1],[1,0,0]], [[x0,y1,z0],[x0,y0,z0],[x0,y0,z1],[x0,y1,z1],[-1,0,0]]].forEach(function(f){
+          var base2 = v.length / 9;
+          for (var k = 0; k < 4; k++) v.push(f[k][0], f[k][1], f[k][2], f[4][0], f[4][1], f[4][2], c[0], c[1], c[2]);
+          idx.push(base2, base2 + 1, base2 + 2, base2, base2 + 2, base2 + 3);
+        });
+      } else if (it.t === 'line') line(lv, it.a, it.b, c);
+    });
+    upload(bExtra, v, idx); upload(bExtraL, lv.v, lv.i); dirty = true;
+  };
+  /* Ustaw środek i wielkość widoku na zadany prostopadłościan */
+  this.frameBox = function(lo, hi){ tgt = [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2]; span = Math.max(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) * 0.82; dirty = true; };
+  /* Punkt 3D → piksele na płótnie (do etykiet) */
+  this.project = function(p){
+    if (!lastM) return null;
+    var M = lastM.M, q = ROT ? m3v(ROT, p) : p, x = M[0] * q[0] + M[4] * q[1] + M[8] * q[2] + M[12], y = M[1] * q[0] + M[5] * q[1] + M[9] * q[2] + M[13], w = M[3] * q[0] + M[7] * q[1] + M[11] * q[2] + M[15];
+    if (w <= 0) return null;
+    return [(x / w * 0.5 + 0.5) * cv.clientWidth, (1 - (y / w * 0.5 + 0.5)) * cv.clientHeight];
+  };
   /* Widok maszyny: cała scena obrócona jak stół (detal → maszyna), narzędzie wtedy pionowo */
   this.setMachine = function(R3){
     ROT = R3 || null;
@@ -293,10 +329,14 @@ function Sim3D(box, opts){
     gl.disable(gl.DEPTH_TEST);
     drawBuf(bCur, gl.LINES, true);
     drawBuf(bMark, gl.LINES, true);
+    gl.enable(gl.DEPTH_TEST);
+    drawBuf(bExtra, gl.TRIANGLES, false);
+    drawBuf(bExtraL, gl.LINES, true);
+    if (opts.onFrame) try { opts.onFrame(); } catch(e){}
   }
   var raf = 0;
   this.draw = function(){ dirty = true; if (!raf) raf = requestAnimationFrame(frame); };
-  this.reset = function(){ cam = {yaw:-0.95, pitch:0.62, zoom:1, pan:[0, 0, 0]}; self.draw(); };
+  this.reset = function(){ cam = {yaw:CAM0.yaw, pitch:CAM0.pitch, zoom:CAM0.zoom, pan:[0, 0, 0]}; self.draw(); };
   this.recolor = function(){ colors(); self.meshDirty = true; self.draw(); };
 
   /* Pomiar: stuknięcie w model → X, Y, Z punktu na powierzchni materiału */
@@ -366,8 +406,7 @@ function Sim3D(box, opts){
     var was = ptrs[e.pointerId]; delete ptrs[e.pointerId];
     if (Object.keys(ptrs).length < 2) pinch0 = 0;
     if (was && down && !down.moved && !Object.keys(ptrs).length && Date.now() - down.t < 500 && e.type === 'pointerup'){
-      var r = self.pick(e.clientX, e.clientY);
-      if (opts.onPick) opts.onPick(r);
+      if (!opts.noPick){ var r = self.pick(e.clientX, e.clientY); if (opts.onPick) opts.onPick(r); }
     }
     if (!Object.keys(ptrs).length) down = null;
   }

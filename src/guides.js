@@ -322,7 +322,7 @@ onControlChange = function(){ _occGuide(); if (curGuide && !$('#tab-guide').hidd
 /* ===== Rysunek 3D (rzut ukośny) do kalkulatorów punktu zerowego i długości narzędzia =====
    Schemat, nie w skali — liczby na rysunku są z kalkulatora. */
 function zvNum(v){ return isFinite(v) ? String(Math.round(v * 1000) / 1000).replace('.', ',').replace('-', '−') : '?'; }
-function zeroViz(o){
+function zeroVizSvg(o){
   var W = 320, H = 190, ca = Math.cos(0.62) * 0.5, sa = Math.sin(0.62) * 0.5, S = 2.05, OX = 62, OY = 168;
   function P(x, y, z){ return [OX + (x + y * ca) * S, OY - (z + 26 + y * sa) * S]; }
   function pts(a){ return a.map(function(p){ var q = P(p[0], p[1], p[2]); return q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join(' '); }
@@ -394,16 +394,101 @@ function zeroViz(o){
     '<ul class="zvleg">' + leg.map(function(l){ return '<li>' + (l[0] !== '' ? '<span class="zv-n">' + l[0] + '</span>' : '<span></span>') + '<span>' + l[1] + '</span>' + l[2] + '</li>'; }).join('') + '</ul>' +
     '<p class="fine zvnote">Rysunek poglądowy, nie w skali. Zielony znak to punkt zerowy detalu (X, Y, Z).' + (ax === 'Y' ? ' Y− = strona operatora.' : '') + '</p></div>';
 }
+/* ===== Rysunek 3D w kalkulatorach — ten sam silnik i kolory co symulacja ===== */
+var ZV = {node:null, s3:null, labels:[]};
+function zvNode(){
+  if (ZV.node) return ZV.node;
+  var n = document.createElement('div'); n.className = 'zvwrap';
+  n.innerHTML = '<div class="zv3"><div class="zv3c"></div><div class="zv3lab" aria-hidden="true"></div><button type="button" class="zv3reset" aria-label="Widok od nowa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12a7 7 0 1 0 2-5"/><path d="M5 4v4h4"/></svg></button></div><ul class="zvleg"></ul><p class="fine zvnote"></p>';
+  ZV.node = n;
+  ZV.s3 = new Sim3D(n.querySelector('.zv3c'), {noPick:true, cam:{yaw:-1.2, pitch:0.48, zoom:1.18}, onFrame:zvPlace});
+  n.querySelector('.zv3reset').addEventListener('click', function(){ ZV.s3.reset(); });
+  return n;
+}
+function zvPlace(){
+  ZV.labels.forEach(function(l){
+    var q = ZV.s3.project(l.p);
+    if (!q){ l.el.style.display = 'none'; return; }
+    l.el.style.display = ''; l.el.style.left = (q[0] + (l.dx || 0)).toFixed(1) + 'px'; l.el.style.top = (q[1] + (l.dy || 0)).toFixed(1) + 'px';
+  });
+}
+function zvScene(o){
+  var W = 80, D = 50, H = 25, cx = 40, cy = 25, it = [], lab = [], leg = [], r = 5, ax = o.ax;
+  var st = makeStock(0, 0, W, D, 0, -H, 170), i, j, k;
+  function setZ(fn){ for (j = 0; j < st.ny; j++) for (i = 0; i < st.nx; i++){ k = j * st.nx + i; var z = fn(st.x0 + i * st.cell, st.y0 + j * st.cell); if (z != null) st.z[k] = z; } }
+  function probe(p){ it.push({t:'cyl', p:[p[0], p[1], p[2] + r * 0.6], r:1.4, h:30, c:'rapid'}); it.push({t:'sph', p:p, r:r, c:'tool'}); }
+  function origin(p){
+    it.push({t:'sph', p:p, r:1.7, c:'mark'});
+    it.push({t:'cyl', p:p, ax:[1, 0, 0], r:0.6, h:16, c:'mark'}); it.push({t:'cyl', p:p, ax:[0, 1, 0], r:0.6, h:16, c:'mark'}); it.push({t:'cyl', p:p, ax:[0, 0, 1], r:0.6, h:16, c:'mark'});
+  }
+  var val = function(v, pre){ return '<b class="mono">' + (pre || '') + zvNum(v) + '</b>'; }, ok = function(v){ return '<b class="mono zv-ok">' + zvNum(v) + '</b>'; };
+  if (ax === 'Z'){
+    var bz = o.b > 0 ? 4 : 0, tool = o.mode === 'tool';
+    if (bz) it.push({t:'box', a:[31, 16, 0], b:[49, 34, bz], c:'hole'});
+    it.push({t:'cyl', p:[cx, cy, bz], r:5, h:26, c:'tool'});
+    it.push({t:'cyl', p:[cx, cy, bz + 26], r:10, h:12, c:'rapid'});
+    origin([0, 0, 0]);
+    lab.push({n:1, p:[cx, cy, bz + 38], dx:22}); if (bz) lab.push({n:2, p:[49, 16, bz / 2], dx:14}); lab.push({n:3, p:[cx, cy, bz + 13], dx:18}); lab.push({n:4, p:[0, 0, 0], dx:-14, dy:10});
+    leg.push([1, 'Z maszynowe przy dotknięciu', val(o.p)]);
+    if (bz) leg.push([2, 'Płytka / wałeczek', val(o.b)]);
+    if (tool){ leg.push([3, 'Długość narzędzia — wpisz', ok(o.res)]); leg.push([4, 'G54 Z (z tabeli)', val(o.base)]); }
+    else { leg.push([3, 'Długość narzędzia (z tabeli)', val(o.L)]); leg.push([4, (o.wo || 'G54') + ' Z — wpisz', ok(o.res)]); }
+  } else if (o.m === 'center'){
+    var isX = ax === 'X', R = 15, boss = o.kind === 'boss', zt = boss ? -6 : -6, off = boss ? R + r : R - r;
+    if (boss) setZ(function(x, y){ return Math.hypot(x - cx, y - cy) > R ? -12 : null; });
+    else setZ(function(x, y){ return Math.hypot(x - cx, y - cy) <= R ? -16 : null; });
+    for (k = 0; k < st.z.length; k++) if (st.z[k] < 0) st.mark[k] = 1;
+    var p1 = isX ? [cx - off, cy, zt] : [cx, cy - off, zt], p2 = isX ? [cx + off, cy, zt] : [cx, cy + off, zt];
+    probe(p1); probe(p2);
+    origin([cx, cy, 0]);
+    lab.push({n:1, p:[p1[0], p1[1], p1[2] + 30], dx:-12}); lab.push({n:2, p:[p2[0], p2[1], p2[2] + 30], dx:12}); lab.push({n:3, p:[cx, cy, 0], dx:0, dy:16});
+    leg.push([1, 'Pozycja 1 (maszynowa ' + ax + ')', val(o.p)]);
+    leg.push([2, 'Pozycja 2 (maszynowa ' + ax + ')', val(o.p2)]);
+    leg.push([3, 'Środek → ' + (o.wo || 'G54') + ' ' + ax + ' — wpisz', ok(o.res)]);
+    if (isFinite(o.size)) leg.push(['', boss ? 'Zmierzony czop' : 'Zmierzony otwór', val(o.size, 'Ø')]);
+  } else {
+    var left = o.side < 0, pp, edgeA, edgeB, org;
+    if (ax === 'X'){
+      var ex = left ? 0 : W; pp = [left ? -r : W + r, cy, -7];
+      it.push({t:'box', a:[ex - 0.5, -0.5, -0.5], b:[ex + 0.5, D + 0.5, 0.5], c:'bad'}); it.push({t:'box', a:[ex - 0.5, -0.5, -H], b:[ex + 0.5, 0.5, 0.5], c:'bad'});
+      org = [ex, 0, 0];
+    } else {
+      var ey = left ? 0 : D; pp = [cx, left ? -r : D + r, -7];
+      it.push({t:'box', a:[-0.5, ey - 0.5, -0.5], b:[W + 0.5, ey + 0.5, 0.5], c:'bad'});
+      org = [0, ey, 0];
+    }
+    probe(pp); origin(org);
+    lab.push({n:1, p:[pp[0], pp[1], pp[2] + 30], dx:left ? -14 : 14}); lab.push({n:2, p:org, dx:-14, dy:12});
+    leg.push([1, ax + ' maszynowe (środek kulki Ø' + zvNum(o.d) + ')', val(o.p)]);
+    leg.push([2, 'Krawędź detalu → ' + (o.wo || 'G54') + ' ' + ax + ' — wpisz', ok(o.res)]);
+  }
+  return {st:st, items:it, labels:lab, leg:leg};
+}
+function zeroViz3(container, before, o){
+  var n = zvNode();
+  if (n.parentNode !== container || n.nextSibling !== before) container.insertBefore(n, before);
+  if (!ZV.s3.ok){ n.innerHTML = zeroVizSvg(o); return; }
+  var sc = zvScene(o), key = o.ax + o.m + o.kind + o.side + (o.b > 0) + o.mode;
+  ZV.s3.setStock(sc.st, ZV.key === key);
+  ZV.s3.setExtras(sc.items);
+  ZV.s3.frameBox([-12, -12, -26], [92, 62, o.ax === 'Z' ? 44 : 30]);
+  if (ZV.key !== key) ZV.s3.reset();
+  ZV.key = key;
+  var lb = n.querySelector('.zv3lab');
+  lb.innerHTML = sc.labels.map(function(l){ return '<span class="zv3m">' + l.n + '</span>'; }).join('');
+  ZV.labels = sc.labels.map(function(l, i){ l.el = lb.children[i]; return l; });
+  n.querySelector('.zvleg').innerHTML = sc.leg.map(function(l){ return '<li>' + (l[0] !== '' ? '<span class="zv-n">' + l[0] + '</span>' : '<span></span>') + '<span>' + l[1] + '</span>' + l[2] + '</li>'; }).join('');
+  n.querySelector('.zvnote').textContent = 'Przeciągnij, żeby obrócić; dwa palce — przybliż. Zielony znak to punkt zerowy detalu (X, Y, Z), czerwona linia — krawędź, której dotykasz. Rysunek nie w skali.' + (o.ax === 'Y' ? ' Y− = strona operatora.' : '');
+  ZV.s3.draw();
+}
 (function(){
   var _zc = zeroCalc, _tc = toolCalc;
   zeroCalc = function(box){
     _zc(box);
     function upd(){
       var out = box.querySelector('#zc-out'); if (!out) return;
-      var v = box.querySelector('#zc-viz');
-      if (!v){ v = document.createElement('div'); v.id = 'zc-viz'; out.parentNode.insertBefore(v, out); }
       var r = calcZero(ZC) || {};
-      v.innerHTML = zeroViz({ax:ZC.ax, m:ZC.m, side:+ZC.side, d:parseNum(ZC.d), p:parseNum(ZC.p), p2:parseNum(ZC.p2), L:parseNum(ZC.L), b:parseNum(ZC.b) || 0, wo:esc(ZC.wo), kind:ZC.kind, res:r.value, size:r.size});
+      zeroViz3(out.parentNode, out, {ax:ZC.ax, m:ZC.m, side:+ZC.side, d:parseNum(ZC.d), p:parseNum(ZC.p), p2:parseNum(ZC.p2), L:parseNum(ZC.L), b:parseNum(ZC.b) || 0, wo:esc(ZC.wo), kind:ZC.kind, res:r.value, size:r.size});
     }
     box.addEventListener('input', function(){ setTimeout(upd, 0); });
     box.addEventListener('click', function(){ setTimeout(upd, 0); });
@@ -413,9 +498,7 @@ function zeroViz(o){
     _tc(box);
     function upd(){
       var out = box.querySelector('#tc-out'); if (!out) return;
-      var v = box.querySelector('#tc-viz');
-      if (!v){ v = document.createElement('div'); v.id = 'tc-viz'; out.parentNode.insertBefore(v, out); }
-      v.innerHTML = zeroViz({ax:'Z', mode:'tool', p:parseNum(TC.p), b:parseNum(TC.b) || 0, base:TC.m === 'part' ? parseNum(TC.base) : 0, res:calcToolLen(TC)});
+      zeroViz3(out.parentNode, out, {ax:'Z', mode:'tool', p:parseNum(TC.p), b:parseNum(TC.b) || 0, base:TC.m === 'part' ? parseNum(TC.base) : 0, res:calcToolLen(TC)});
     }
     box.addEventListener('input', function(){ setTimeout(upd, 0); });
     box.addEventListener('click', function(){ setTimeout(upd, 0); });
