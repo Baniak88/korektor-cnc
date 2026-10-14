@@ -431,4 +431,46 @@ textarea.prog:focus{outline:none;box-shadow:inset 0 0 0 2px var(--accent)}
 #st-res small{font-size:13px;color:var(--muted)}
 #st-res .chev{font-size:24px;line-height:1;color:var(--muted)}
 #tab-guide .tlink{margin-bottom:-14px;font-size:17px}
+
+/* ===== Nowy program, AI przez API, diagnoza ===== */
+.pseg{margin-bottom:-8px}
+.seg.wrap{flex-wrap:wrap}
+.seg.wrap button{flex:1 1 auto;white-space:normal;line-height:1.2}
+.sel{width:100%;min-height:50px;border:0;border-radius:12px;background:var(--surface);color:var(--ink);padding:10px 14px;font:500 16px/1.2 var(--f-body);-webkit-appearance:none;appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 20px) 50%,calc(100% - 15px) 50%;background-size:5px 5px;background-repeat:no-repeat}
+.sel:focus{outline:none;box-shadow:inset 0 0 0 2px var(--accent)}
+.addops{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.addops .ktile{grid-auto-flow:column;justify-content:start;align-items:center;padding:12px;gap:10px;text-align:left}
+.addops .ktile svg{width:26px;height:26px;color:var(--accent)}
+.addops .ktile span{font-size:14.5px;font-weight:600}
+.opcard{background:var(--surface);border-radius:var(--r);overflow:hidden}
+.opcard.open{box-shadow:inset 0 0 0 2px var(--accent)}
+.ophead{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;width:100%;text-align:left;border:0;background:transparent;padding:12px 14px;min-height:62px;color:var(--ink)}
+.ophead .tt{display:grid;gap:2px;min-width:0}
+.ophead b{font-size:16px;font-weight:600;overflow-wrap:anywhere}
+.ophead small{font-size:13px;color:var(--muted);font-family:var(--f-mono);letter-spacing:0;overflow-wrap:anywhere}
+.ophead .chev{font-size:20px;color:var(--muted)}
+.opno{width:28px;height:28px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font:600 14px/28px var(--f-body);text-align:center}
+.opbody{display:grid;gap:12px;padding:4px 14px 14px;background:var(--surface)}
+.opbody .num,.opbody .sel,.opbody .aiq,.opbody .switch{background:var(--surface-2)}
+.opbody .glab{padding:4px 0 0;margin:0}
+.opbtns{display:grid;grid-template-columns:auto auto 1fr 1fr;gap:8px}
+.tooltab{background:var(--surface);border-radius:var(--r);padding:12px 16px;display:grid;gap:6px}
+.tooltab ul{list-style:none;margin:0;padding:0}
+.tooltab li{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:8px;align-items:baseline;padding:7px 0;border-bottom:.5px solid var(--line);font-size:15px}
+.tooltab li:last-child{border-bottom:0}
+.tooltab small{color:var(--muted);font-size:12.5px}
+.thumb.pdf{display:grid;place-items:center;align-content:center;gap:2px;background:var(--surface);padding:6px}
+.pdfico{font:700 15px/1 var(--f-body);color:var(--bad)}
+.thumb.pdf small{font-size:10.5px;color:var(--muted);max-width:66px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.okline{margin:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:14.5px;overflow-wrap:anywhere}
+.apicard{box-shadow:inset 0 0 0 2px var(--accent-soft)}
+.aires{gap:10px}
+.aians{font-size:14.5px;overflow-wrap:anywhere}
+.cres-two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.cres-two > div{display:grid;gap:2px}
+.cres-two .big{font:600 30px/1.1 var(--f-mono);letter-spacing:0}
+.h3big{font:700 24px/1.2 var(--f-disp);letter-spacing:-.02em;margin:0}
+.toast .tundo{pointer-events:auto;margin-left:12px;border:0;background:transparent;color:var(--ic-blue);font:600 15px/1 var(--f-body);padding:4px}
+[hidden]{display:none!important}
+section > *,.group > *,.stepgroup > *,.anscard > *,.result > *,.opbody > *,.calc > *{min-width:0}
 </style>

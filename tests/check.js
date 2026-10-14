@@ -10,8 +10,8 @@ const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map(m =
 scripts.forEach((s, i) => { try { new vm.Script(s, { filename: 'script' + i + '.js' }); } catch (e) { console.error('Błąd składni w skrypcie ' + i); throw e; } });
 
 const core = html.match(/<script id="core">([\s\S]*?)<\/script>/)[1];
-const ctx = {}; vm.createContext(ctx); vm.runInContext(core + '\nthis.calcCorrection = calcCorrection; this.processProgram = processProgram; this.simulateProgram = simulateProgram; this.arcPoints = arcPoints; this.calcZero = calcZero; this.calcToolLen = calcToolLen;', ctx);
-const { calcCorrection, processProgram, simulateProgram, arcPoints, calcZero, calcToolLen } = ctx;
+const ctx = {}; vm.createContext(ctx); vm.runInContext(core + '\nthis.calcCorrection = calcCorrection; this.processProgram = processProgram; this.simulateProgram = simulateProgram; this.arcPoints = arcPoints; this.calcZero = calcZero; this.calcToolLen = calcToolLen; this.genProgram = genProgram; this.tapInfo = tapInfo; this.cutData = cutData; this.holePattern = holePattern;', ctx);
+const { calcCorrection, processProgram, simulateProgram, arcPoints, calcZero, calcToolLen, genProgram, tapInfo, cutData, holePattern } = ctx;
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, a + ' != ' + b);
 
 // Korekcja: otwór Ø20 H7 zmierzony 19.998 → celujemy w środek 20.0105 → ΔR −0.006
@@ -83,4 +83,45 @@ near(calcToolLen({ m: 'part', p: '-250', base: '-560', b: '10' }), 300);
 near(calcToolLen({ m: 'zero', p: '-420.3', b: '' }), -420.3);
 assert.strictEqual(calcToolLen({ m: 'part', p: '-250', base: '' }), null);
 
+// Gwinty: zwykły z tabeli, drobnozwojny d − skok
+let ti = tapInfo('M10'); near(ti.pitch, 1.5); near(ti.drill, 8.5);
+ti = tapInfo('m8 x 1'); near(ti.pitch, 1); near(ti.drill, 7); assert.ok(ti.fine);
+assert.strictEqual(tapInfo('abc'), null);
+// Dane skrawania: frez Ø10 stal → S = 150·1000/(π·10) ≈ 4770, F = S·0,06·4
+let cd = cutData({ tool: 'mill', d: 10, mat: 'stal' }); assert.strictEqual(cd.S, 4770); assert.strictEqual(cd.F, 1145);
+cd = cutData({ tool: 'tap', d: 10, pitch: 1.5, mat: 'stal' }); near(cd.F, cd.S * 1.5);
+cd = cutData({ tool: 'mill', d: 1, mat: 'alu', maxS: 15000 }); assert.strictEqual(cd.S, 15000); assert.ok(cd.capped);
+// Wzory otworów
+let hp = holePattern({ kind: 'circle', x: 0, y: 0, pcd: 20, n: 4 }); assert.strictEqual(hp.length, 4); near(hp[1][1], 10); near(hp[2][0], -10);
+hp = holePattern({ kind: 'grid', x: 0, y: 0, nx: 3, ny: 2, dx: 10, dy: 5 }); assert.deepStrictEqual(JSON.parse(JSON.stringify(hp)), [[0,0],[10,0],[20,0],[20,5],[10,5],[0,5]]);
+hp = holePattern({ kind: 'list', text: 'X10 Y20; 30,5 -7,5\n-4 8' }); assert.strictEqual(hp.length, 3); near(hp[1][0], 30.5); near(hp[1][1], -7.5);
+// Generator: kieszeń + otwory, Fanuc i Sinumerik
+const GS = { name: 'Płyta', safe: 50, ops: [
+  { type: 'pocket', shape: 'rect', T: 2, d: 10, S: 4700, F: 500, cx: 50, cy: 30, w: 40, h: 24, r: 6, depth: -5, ap: 2.5 },
+  { type: 'boss', shape: 'circle', T: 3, d: 12, S: 4000, F: 600, cx: 50, cy: 30, D: 40, depth: -3, stock: 3 },
+  { type: 'holes', kind: 'peck', T: 4, d: 8.5, S: 3000, F: 400, depth: -20, q: 4, pattern: { kind: 'row', x: 10, y: 10, n: 3, dx: 20 } },
+  { type: 'holes', kind: 'tap', T: 5, d: 10, S: 300, F: 450, pitch: 1.5, depth: -15, pattern: { kind: 'list', pts: [[10, 10]] } } ] };
+let g = genProgram(Object.assign({ ctl: 'fanuc' }, GS));
+assert.deepStrictEqual(JSON.parse(JSON.stringify(g.errors)), []);
+assert.ok(/^%\nO1000 \(PLYTA\)/.test(g.text) && /M30\n%$/.test(g.text));
+assert.ok(g.text.includes('T2 M06') && g.text.includes('G43 Z50. H2 M08'));
+assert.ok(g.text.includes('G41 G01') && g.text.includes(' D2') && g.text.includes('G40 G01'));
+assert.ok(g.text.includes('G98 G83 X10. Y10. Z-20. R2. Q4. F400') && g.text.includes('X50. Y10.\nG80'));
+assert.ok(g.text.includes('M29 S300\nG98 G84 X10. Y10. Z-15. R2. F450.'));
+let gsim = simulateProgram(g.text, 'fanuc'); assert.strictEqual(gsim.segs.filter(x => x.type === 'hole').length, 4);
+assert.ok(Math.min(...gsim.segs.map(x => x.b[2])) === -20);
+g = genProgram(Object.assign({ ctl: 'sinumerik' }, GS));
+assert.deepStrictEqual(JSON.parse(JSON.stringify(g.errors)), []);
+assert.ok(g.text.includes('CYCLE83(50,0,2,-20,,,4,4,0,0,1,1)\nMCALL CYCLE83(50,0,2,-20,,,4,4,0,0,1,1)\nX30 Y10\nX50 Y10\nMCALL'));
+assert.ok(g.text.includes('CYCLE84(50,0,2,-15,,0,3,,1.5,0,300,300)') && !/G0\d/.test(g.text));
+sim = simulateProgram(g.text, 'sinumerik'); assert.strictEqual(gsim.segs.filter(x => x.type === 'hole').length, 4);
+assert.deepStrictEqual(JSON.parse(JSON.stringify(gsim.notes)), []);
+// Błędy: frez za duży, promień naroża mniejszy niż frez
+g = genProgram({ ctl: 'fanuc', ops: [{ type: 'pocket', shape: 'rect', T: 1, d: 30, S: 1000, F: 200, cx: 0, cy: 0, w: 20, h: 20, r: 0, depth: -5 }] });
+assert.ok(g.errors.some(e => /za duży/.test(e.t)));
+g = genProgram({ ctl: 'fanuc', ops: [{ type: 'pocket', shape: 'rect', T: 1, d: 10, S: 1000, F: 200, cx: 0, cy: 0, w: 40, h: 40, r: 4, depth: -5 }] });
+assert.ok(g.errors.some(e => /Promień naroża/.test(e.t)));
+
+g = genProgram({ ctl: 'fanuc', ops: [{ type: 'holes', kind: 'drill', T: 3, d: 5, S: 3000, F: 300, depth: -10, pattern: { kind: 'list', pts: [[0, 0]] } }, { type: 'holes', kind: 'drill', T: 3, d: 8, S: 2000, F: 300, depth: -10, pattern: { kind: 'list', pts: [[5, 0]] } }] });
+assert.ok(g.warns.some(w => /T3 ma w różnych/.test(w.t)));
 console.log('OK — ' + scripts.length + ' skryptów, testy logiki przeszły');

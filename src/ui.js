@@ -641,7 +641,7 @@ function renderAlarms(){
 $('#a-q').addEventListener('input', renderAlarms);
 
 /* ===== Zakładki ===== */
-var TABS = ['start','korekcja','gcode','ai','wiedza','guide'];
+var TABS = ['start','korekcja','gcode','nowy','ai','wiedza','guide'];
 var SUBS = {kody:'kody', slownik:'slownik', alarmy:'alarmy'};
 function showWiedza(sub){
   setPressed('#wSeg', 'data-w', sub);
@@ -657,11 +657,11 @@ function showTab(t){
   if (SUBS[t]){ showWiedza(SUBS[t]); t = 'wiedza'; }
   if (TABS.indexOf(t) < 0 || (t === 'guide' && !$('#guide').innerHTML)) t = 'start';
   TABS.forEach(function(x){ $('#tab-' + x).hidden = x !== t; });
-  $$('.tab').forEach(function(b){ b.setAttribute('aria-selected', String(b.getAttribute('data-tab') === (t === 'guide' ? 'start' : t))); });
+  $$('.tab').forEach(function(b){ b.setAttribute('aria-selected', String(b.getAttribute('data-tab') === (t === 'guide' ? 'start' : t === 'nowy' ? 'gcode' : t))); });
   if (t === 'start') renderStart();
   updateStrip();
 }
-$$('.tab').forEach(function(b){ b.addEventListener('click', function(){ showTab(b.getAttribute('data-tab')); window.scrollTo(0, 0); }); });
+$$('.tab').forEach(function(b){ b.addEventListener('click', function(){ var t = b.getAttribute('data-tab'); if (t === 'gcode' && store.get('ptab', 'gcode') === 'nowy') t = 'nowy'; showTab(t); window.scrollTo(0, 0); }); });
 
 /* ===== Ekran Start ===== */
 function renderStart(){

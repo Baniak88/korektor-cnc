@@ -1,18 +1,18 @@
 var MACHINES = {
   chiron: {
-    name:'Chiron FZ12', short:'FZ12', def:'sinumerik', fiveAxis:false, rot:['A','B','C'], type:'Pionowe centrum obróbcze, wersje 3- i 5-osiowe',
+    name:'Chiron FZ12', short:'FZ12', maxS:15000, def:'sinumerik', fiveAxis:false, rot:['A','B','C'], type:'Pionowe centrum obróbcze, wersje 3- i 5-osiowe',
     ctlNote:'Najczęściej Siemens Sinumerik 840D. Spotykane też wersje z Fanuc.',
     specs:[['Przesuwy X/Y/Z','ok. 500–550 / 300–400 / 280–550 mm (zależnie od wersji)'],['Wrzeciono','HSK50, SK40 lub ISO30; do ok. 15 000 obr/min'],['Magazyn','koszykowy, 20–64 miejsc'],['Wersje','m.in. W, KW (dwie palety), KS i FX (5 osi)']],
     tips:['Sinumerik: korekcja długości i promienia włącza się z T i D. D0 wyłącza korekcję.','Przy zarządzaniu narzędziami narzędzie bywa wywoływane nazwą: T="NAZWA" M6.','Zużycie (ΔL, ΔR) wpisujesz dla konkretnego ostrza D danego narzędzia.']
   },
   matsuura: {
-    name:'Matsuura MX-330', short:'MX-330', def:'fanuc', fiveAxis:true, rot:['A','C'], type:'Centrum 5-osiowe z magazynem palet (PC10)',
+    name:'Matsuura MX-330', short:'MX-330', maxS:15000, def:'fanuc', fiveAxis:true, rot:['A','C'], type:'Centrum 5-osiowe z magazynem palet (PC10)',
     ctlNote:'Matsuura G-Tech 31i, zbudowane na Fanuc 31i.',
     specs:[['Przesuwy X/Y/Z','435 / 465 / 560 mm'],['Osie obrotowe','A (wychylna) + C 360°'],['Wrzeciono','BT40, 15 000 obr/min (opcja 20 000)'],['Magazyn','90 narzędzi'],['Detal maks.','Ø330 × 300 mm, 80 kg'],['Palety','10 (Capto C6)']],
     tips:['Maszyna 5-osiowa: oś A wychyla stół, oś C go obraca. Obróbka 3+2 (płaszczyzna pochylona) albo 5 osi naraz z TCP.','Płaszczyzna pochylona: G68.2 + G53.1, cofnięcie G69. TCP: G43.4, anulowanie G49.','Przy pochylonym narzędziu korekcja długości działa wzdłuż osi narzędzia, a nie wzdłuż Z stołu.','Na pochylonej płaszczyźnie X/Y korekcji i programu dotyczą tej płaszczyzny, nie stołu.','Przy kilku paletach sprawdź, który układ (G54… / G54.1 Pn) używa dana paleta.']
   },
   quaser: {
-    name:'Quaser MV184', short:'MV184', def:'fanuc', fiveAxis:false, rot:['A','B','C'], type:'Pionowe centrum obróbcze',
+    name:'Quaser MV184', short:'MV184', maxS:15000, def:'fanuc', fiveAxis:false, rot:['A','B','C'], type:'Pionowe centrum obróbcze',
     ctlNote:'Zwykle Fanuc (np. 31i-MB lub 0i, zależnie od rocznika). Spotykane też Heidenhain i Siemens.',
     specs:[['Przesuwy X/Y/Z','ok. 1020 / 610 / 610 mm'],['Wrzeciono','stożek 40, typowo 15 000 obr/min'],['Magazyn','np. 30 narzędzi (zależnie od wersji)']],
     tips:['Długie detale mierz po ostygnięciu. Stal rośnie ok. 0,012 mm na metr na każdy °C, aluminium ok. 0,023 mm.','Fanuc: klawisz [+WPROWADŹ] / [+INPUT] dodaje wpisaną wartość do obecnej korekcji.']

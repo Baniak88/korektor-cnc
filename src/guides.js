@@ -132,8 +132,9 @@ var GUIDES = {
 
 var START_GROUPS = [
   ['Problem przy maszynie', [
+    {guide:'diag', i:'<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/><path d="M11 8v3.5M11 14v.3"/>', c:'red'},
     {go:'korekcja', t:'Wymiar poza tolerancją', s:'Policzę, o ile zmienić zużycie', i:'<circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>', c:'blue'},
-    {guide:'broken', i:'<path d="M5 19L12 12M14 10l5-5"/><path d="M11 6l2 2M16 11l2 2"/>', c:'red'},
+    {guide:'broken', i:'<path d="M5 19L12 12M14 10l5-5"/><path d="M11 6l2 2M16 11l2 2"/>', c:'orange'},
     {go:'alarmy', t:'Alarm na maszynie', s:'Co znaczy i co sprawdzić', i:'<path d="M12 3L2 20h20z"/><path d="M12 10v4M12 17v.5"/>', c:'orange'},
     {guide:'limit', i:'<path d="M4 12h12"/><path d="M13 8l4 4-4 4"/><path d="M20 4v16"/>', c:'purple'}
   ]],
@@ -141,9 +142,11 @@ var START_GROUPS = [
     {guide:'zero', i:'<circle cx="12" cy="12" r="3"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/>', c:'green'},
     {guide:'tool', i:'<path d="M9 3h6v6l-2 2v9h-2v-9L9 9z"/>', c:'indigo'},
     {guide:'offset', i:'<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M4 10h16M10 10v9"/>', c:'blue'},
+    {guide:'cut', i:'<circle cx="12" cy="12" r="8"/><path d="M12 12l4-3"/><path d="M12 4v2M20 12h-2M4 12h2"/>', c:'green'},
     {guide:'restart', i:'<path d="M5 12a7 7 0 1 0 2-5"/><path d="M5 4v4h4"/>', c:'teal'}
   ]],
   ['Program i wiedza', [
+    {go:'nowy', t:'Napisz nowy program', s:'Z rysunku albo z wymiarów: kieszenie, kontury, otwory', i:'<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M12 11v6M9 14h6"/>', c:'blue'},
     {go:'gcode', t:'Zmień wymiar w programie', s:'Podgląd ruchów, poszerz, przesuń', i:'<path d="M8 5L3 12l5 7"/><path d="M16 5l5 7-5 7"/><path d="M13.5 4l-3 16"/>', c:'indigo'},
     {go:'ai', t:'Zdjęcie programu do AI', s:'ChatGPT, Claude, Gemini', i:'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>', c:'green'},
     {go:'kody', t:'Co znaczy kod albo pojęcie?', s:'G i M, słowniczek', i:'<path d="M5 4h14v16H5z"/><path d="M9 8h6M9 12h6M9 16h4"/>', c:'orange'}
@@ -169,17 +172,19 @@ function openGuide(id){
   var c = ctl();
   var html = '<div class="sec-h"><h2>' + esc(G.title) + '</h2><p class="lead">' + esc(MACHINES[S.machine].name) + ' · ' + esc(ctlName(S.machine)) + '</p></div>';
   if (G.calc) html += '<div class="calc" id="calc"></div>';
-  html += '<div class="group"><span class="glab">Na sterowaniu ' + (c === 'fanuc' ? 'Fanuc' : 'Sinumerik') + '</span><ol class="gsteps">' +
+  if (G.render) html += '<div class="group" id="calc"></div>';
+  if (G.steps) html += '<div class="group"><span class="glab">Na sterowaniu ' + (c === 'fanuc' ? 'Fanuc' : 'Sinumerik') + '</span><ol class="gsteps">' +
     G.steps[c].map(function(s){ return '<li>' + s + '</li>'; }).join('') + '</ol></div>';
   if (G.warn) html += '<ul class="notes">' + G.warn.map(function(w){ return '<li class="warn">' + esc(w) + '</li>'; }).join('') + '</ul>';
   var btns = '';
   if (G.go) btns += '<button type="button" class="btn primary wide" data-go="' + G.go + '">Policz korektę z pomiaru</button>';
   (G.links || []).forEach(function(l){ btns += '<button type="button" class="btn wide" data-guide="' + l + '">' + esc(GUIDES[l].title) + '</button>'; });
-  btns += '<button type="button" class="btn wide" data-askguide="' + id + '">Zapytaj AI</button>';
-  html += '<div class="group">' + btns + '</div>';
+  if (!G.render) btns += '<button type="button" class="btn wide" data-askguide="' + id + '">Zapytaj AI</button>';
+  if (btns) html += '<div class="group">' + btns + '</div>';
   $('#guide').innerHTML = html;
   if (G.calc === 'zero') zeroCalc($('#calc'));
   if (G.calc === 'tool') toolCalc($('#calc'));
+  if (G.render) G.render($('#calc'));
   showTab('guide'); window.scrollTo(0, 0);
 }
 document.addEventListener('click', function(e){

@@ -141,6 +141,10 @@
 
 <!-- PROGRAM -->
 <section id="tab-gcode" aria-labelledby="h-gc" hidden>
+  <div class="seg pseg" role="group" aria-label="Program">
+    <button type="button" data-ptab="gcode" aria-pressed="true">Popraw program</button>
+    <button type="button" data-ptab="nowy" aria-pressed="false">Nowy program</button>
+  </div>
   <div class="sec-h">
     <h2 id="h-gc">Zmiana wymiaru w programie</h2>
     <p class="lead">Zmienia współrzędne w programie i pokazuje każdą zmienioną linię, zanim wgrasz go na maszynę.</p>
@@ -229,6 +233,58 @@
   <p class="tip">Kontur frezowany z G41/G42 zwykle szybciej poprawisz korekcją promienia (zakładka Korekcja). Zmiana programu przyda się, gdy zmienia się rysunek albo program idzie po torze środka narzędzia.</p>
 </section>
 
+<!-- NOWY PROGRAM -->
+<section id="tab-nowy" aria-labelledby="h-nw" hidden>
+  <div class="seg pseg" role="group" aria-label="Program">
+    <button type="button" data-ptab="gcode" aria-pressed="false">Popraw program</button>
+    <button type="button" data-ptab="nowy" aria-pressed="true">Nowy program</button>
+  </div>
+  <div class="sec-h">
+    <h2 id="h-nw">Nowy program</h2>
+    <p class="lead">Z rysunku albo z wymiarów. Program składam z gotowych operacji: planowanie, kieszeń, kontur, otwory i gwinty.</p>
+  </div>
+
+  <div class="group">
+    <div class="step"><span class="no">1</span><h3>Rysunek</h3><span class="opt">AI odczyta wymiary</span></div>
+    <div class="row">
+      <span class="btn filebtn big-btn"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Zdjęcie<input type="file" id="n-cam" accept="image/*" capture="environment" aria-label="Zrób zdjęcie rysunku"></span>
+      <span class="btn filebtn big-btn"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></svg>Galeria / PDF<input type="file" id="n-file" accept="image/*,application/pdf" multiple aria-label="Wybierz zdjęcie albo PDF rysunku"></span>
+    </div>
+    <div class="thumbs" id="n-thumbs"></div>
+    <div class="field">
+      <label class="lab" for="n-hint">Uwagi do rysunku <span class="hint">(opcjonalnie)</span></label>
+      <textarea id="n-hint" class="aiq" rows="2" placeholder="Np. tylko widok z góry, otwory gwintowane M8 na głębokość 12, baza w środku detalu"></textarea>
+    </div>
+    <button type="button" class="btn primary wide xl" id="n-read"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 3.7 4 .6-2.9 2.8.7 4L12 12.2 8.4 14.1l.7-4L6.2 7.3l4-.6z"/><path d="M5 20h14"/></svg>Odczytaj wymiary z rysunku</button>
+    <p class="fine" id="n-readnote"></p>
+    <div id="n-aiout"></div>
+    <p class="fine">Model 3D z SolidWorks albo Fusion: zapisz rysunek jako PDF albo zrób zrzut ekranu z wymiarami — telefon nie otworzy plików CAD.</p>
+  </div>
+
+  <div class="stepgroup">
+    <div class="step"><span class="no">2</span><h3>Detal i baza</h3></div>
+    <div class="fields" id="n-head"></div>
+  </div>
+
+  <div class="stepgroup">
+    <div class="step"><span class="no">3</span><h3>Operacje</h3><span class="count push" id="n-opcount"></span></div>
+    <div id="n-ops" class="group"></div>
+    <span class="lab">Dodaj operację</span>
+    <div class="addops" id="n-add">
+      <button type="button" class="ktile" data-add="face"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 22h24"/><path d="M8 18h16"/><rect x="10" y="6" width="12" height="8" rx="2"/></svg><span>Planowanie</span></button>
+      <button type="button" class="ktile" data-add="pocket"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="6" width="24" height="20" rx="3"/><rect x="10" y="11" width="12" height="10" rx="2"/></svg><span>Kieszeń</span></button>
+      <button type="button" class="ktile" data-add="boss"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="9" y="9" width="14" height="14" rx="3"/><rect x="4" y="4" width="24" height="24" rx="4" stroke-dasharray="3 3"/></svg><span>Kontur zewn.</span></button>
+      <button type="button" class="ktile" data-add="holes"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="9" cy="9" r="3"/><circle cx="23" cy="9" r="3"/><circle cx="9" cy="23" r="3"/><circle cx="23" cy="23" r="3"/></svg><span>Otwory, gwinty</span></button>
+    </div>
+  </div>
+
+  <div class="stepgroup">
+    <div class="step"><span class="no">4</span><h3>Program</h3><span class="count push" id="n-meta"></span></div>
+    <div id="n-out" class="group"></div>
+  </div>
+</section>
+
+
 <!-- ASYSTENT AI -->
 <section id="tab-ai" aria-labelledby="h-ai" hidden>
   <div class="sec-h">
@@ -237,6 +293,11 @@
   </div>
 
   <div class="conn" id="ai-status" hidden></div>
+  <div class="conn apicard" id="ai-apicard" hidden>
+    <div class="connrow"><b>Odpowiedzi od razu w aplikacji</b></div>
+    <p class="fine">Wklej swój klucz API do Claude, ChatGPT albo Gemini. Zdjęcie, PDF rysunku i pytanie pójdą prosto do AI, a odpowiedź pojawi się tutaj.</p>
+    <button type="button" class="btn primary wide" data-apiset>Połącz AI kluczem API</button>
+  </div>
 
   <div class="group">
     <div class="step"><span class="no">1</span><h3>Co chcesz?</h3></div>
@@ -252,7 +313,7 @@
     <div class="step"><span class="no">2</span><h3 id="ai-s2">Zrób zdjęcie</h3><span class="opt" id="ai-s2opt"></span></div>
     <div class="row" id="ai-photoBtns">
       <span class="btn filebtn big-btn"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Aparat<input type="file" id="ai-cam" accept="image/*" capture="environment" aria-label="Zrób zdjęcie"></span>
-      <span class="btn filebtn big-btn"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M4 16l5-5 4 4 2-2 5 5"/></svg>Z galerii<input type="file" id="ai-gal" accept="image/*" multiple aria-label="Wybierz zdjęcia z galerii"></span>
+      <span class="btn filebtn big-btn"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M4 16l5-5 4 4 2-2 5 5"/></svg>Galeria / PDF<input type="file" id="ai-gal" accept="image/*,application/pdf" multiple aria-label="Wybierz zdjęcia albo PDF"></span>
     </div>
     <div class="thumbs" id="ai-thumbs"></div>
     <p class="fine" id="ai-photoTip">Zdjęcie z bliska, ekran na wprost, najlepiej do 40 linii na jedno zdjęcie.</p>
@@ -271,7 +332,7 @@
     <button type="button" class="btn danger wide" id="ai-stop" hidden>Zatrzymaj</button>
     <div class="chat" id="ai-chat" aria-live="polite"></div>
     <button type="button" class="tlink" id="ai-new" hidden>Nowa rozmowa</button>
-    <p class="note-warn">Zdjęcia i program trafią do Claude na Twoim koncie. Sprawdź, czy firma pozwala wysyłać programy i rysunki klientów.</p>
+    <p class="note-warn" id="ai-acc-warn">Zdjęcia i program trafią do Claude na Twoim koncie. Sprawdź, czy firma pozwala wysyłać programy i rysunki klientów.</p>
   </div>
 
   <!-- Tryb udostępniania: aplikacje AI na telefonie -->
@@ -304,6 +365,7 @@
         <div class="anshead"><span class="lab">Odpowiedź AI</span><button type="button" class="btn ghost" id="ai-ansClear">Usuń</button></div>
         <div id="ai-ansBody"></div>
         <button type="button" class="btn primary wide" id="ai-insert" hidden>Wstaw kod do Programu</button>
+        <button type="button" class="btn primary wide" id="ai-genIns" hidden>Wczytaj do Nowego programu</button>
         <button type="button" class="btn wide" id="ai-ansCopy">Kopiuj odpowiedź</button>
       </div>
       <details class="more">
@@ -435,11 +497,17 @@
         <li>Wybierz, co zmienić. Pod każdą opcją jest przykład.</li>
         <li>Sprawdź zmienione linie i ostrzeżenia, potem skopiuj program.</li>
       </ol>
+      <h3>Nowy program</h3>
+      <ol>
+        <li>Program → Nowy program. Dodaj zdjęcie albo PDF rysunku i naciśnij „Odczytaj wymiary” — albo dodaj operacje ręcznie.</li>
+        <li>Sprawdź każdą operację z rysunkiem: wymiary, głębokości, narzędzia, S i F.</li>
+        <li>Na dole jest podgląd ruchów, lista narzędzi i gotowy program do skopiowania albo zapisania.</li>
+      </ol>
       <h3>AI</h3>
       <ol>
         <li>Wybierz, co chcesz: odczyt programu ze zdjęcia, sprawdzenie, wyjaśnienie albo pytanie.</li>
         <li>Zrób zdjęcie. Pytanie jest już przygotowane.</li>
-        <li>„Wyślij do aplikacji AI” i wybierz ChatGPT, Claude albo Gemini.</li>
+        <li>„Wyślij do aplikacji AI” i wybierz ChatGPT, Claude albo Gemini. Z kluczem API („Połącz AI”) odpowiedź pojawi się od razu w aplikacji.</li>
         <li>Odpowiedź z kodem wklej w kroku 4 — trafi do zakładki Program.</li>
       </ol>
       <h3>Wiedza</h3>
@@ -450,6 +518,15 @@
       <p>Przycisk z nazwą maszyny u góry zmienia maszynę i sterowanie.</p>
     </div>
     <button type="button" class="btn primary wide" data-goto="slownik">Otwórz słowniczek pojęć</button>
+  </div>
+</div>
+
+<div class="sheet" id="apiSheet" role="dialog" aria-modal="true" aria-labelledby="apiH" hidden>
+  <div class="in">
+    <div class="handle"></div>
+    <div class="sheet-h"><h2 id="apiH">Połącz AI</h2><button type="button" class="btn ghost" data-close>Zamknij</button></div>
+    <p class="fine">Wklej swój klucz API. Odpowiedzi pojawią się od razu w aplikacji — bez przełączania do ChatGPT, Claude czy Gemini.</p>
+    <div class="group" id="apiBody"></div>
   </div>
 </div>
 
@@ -474,6 +551,9 @@
 /*{{UI}}*/
 /*{{SIM}}*/
 /*{{GUIDES}}*/
+/*{{DIAG}}*/
+/*{{AIAPI}}*/
 /*{{AI}}*/
+/*{{GEN}}*/
 </script>
 <!--PWA_TAIL-->

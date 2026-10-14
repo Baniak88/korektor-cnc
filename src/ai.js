@@ -51,9 +51,7 @@ $('#ai-q').addEventListener('input', function(){ AI.qTouched = true; });
 
 function renderAI(){
   var A = AI_ACTS[AI.act];
-  $('#ai-thumbs').innerHTML = AI.photos.map(function(p, i){
-    return '<div class="thumb"><img src="' + p.url + '" alt="Zdjęcie ' + (i + 1) + '"><button type="button" data-rm="' + i + '" aria-label="Usuń zdjęcie">×</button></div>';
-  }).join('');
+  $('#ai-thumbs').innerHTML = AI.photos.map(thumbHtml).join('');
   var n = progText() ? progText().split(/\r?\n/).length : 0;
   $('#ai-progWrap').hidden = !n || AI.act === 'ocr';
   if (!AI.progTouched) $('#ai-incProg').checked = A.prog && !!n && !AI.photos.length;
@@ -62,22 +60,28 @@ function renderAI(){
 }
 $('#ai-incProg').addEventListener('change', function(){ AI.progTouched = true; });
 
-/* ----- Zdjęcia ----- */
+/* ----- Zdjęcia i PDF ----- */
+function thumbHtml(p, i){
+  return '<div class="thumb' + (p.pdf ? ' pdf' : '') + '">' + (p.pdf ? '<span class="pdfico">PDF</span><small>' + esc(p.file.name || '') + '</small>' : '<img src="' + p.url + '" alt="Zdjęcie ' + (i + 1) + '">') +
+    '<button type="button" data-rm="' + i + '" aria-label="Usuń">×</button></div>';
+}
 function addPhotos(files){
-  var list = Array.prototype.slice.call(files || []).filter(function(f){ return /^image\//.test(f.type); });
+  var list = Array.prototype.slice.call(files || []).filter(function(f){ return /^image\//.test(f.type) || f.type === 'application/pdf'; });
+  if (list.some(function(f){ return f.size > 15e6; })){ toast('Plik większy niż 15 MB — pomijam'); list = list.filter(function(f){ return f.size <= 15e6; }); }
+  if (AI.mode === 'acc' && list.some(function(f){ return f.type === 'application/pdf'; })){ toast('W tym widoku PDF nie przejdzie — zrób zdjęcie strony'); list = list.filter(function(f){ return f.type !== 'application/pdf'; }); }
   if (!list.length) return;
   var room = 6 - AI.photos.length;
   if (room <= 0){ toast('Maksymalnie 6 zdjęć'); return; }
-  list.slice(0, room).forEach(function(f){ AI.photos.push({file:f, url:URL.createObjectURL(f)}); });
+  list.slice(0, room).forEach(function(f){ AI.photos.push({file:f, pdf:f.type === 'application/pdf', url:f.type === 'application/pdf' ? '' : URL.createObjectURL(f)}); });
   if (list.length > room) toast('Dodano ' + room + ' (maks. 6)');
   renderAI();
-  $(AI.sample ? '#ai-ask' : '#ai-share').scrollIntoView({behavior:'smooth', block:'center'});
+  $(AI.mode !== 'share' ? '#ai-ask' : '#ai-share').scrollIntoView({behavior:'smooth', block:'center'});
 }
 ['#ai-cam', '#ai-gal'].forEach(function(id){ $(id).addEventListener('change', function(){ addPhotos(this.files); this.value = ''; }); });
 $('#ai-thumbs').addEventListener('click', function(e){
   var b = e.target.closest('[data-rm]'); if (!b) return;
   var i = Number(b.getAttribute('data-rm')), p = AI.photos[i];
-  if (p) try { URL.revokeObjectURL(p.url); } catch(_){}
+  if (p && p.url) try { URL.revokeObjectURL(p.url); } catch(_){}
   AI.photos.splice(i, 1); renderAI();
 });
 
@@ -97,7 +101,7 @@ $('#ai-share').addEventListener('click', function(){
   if (!validateAI()) return;
   var files = AI.photos.map(function(p, i){
     var ext = (p.file.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
-    return new File([p.file], 'zdjecie-' + (i + 1) + '.' + ext, {type:p.file.type || 'image/jpeg'});
+    return new File([p.file], (p.pdf ? 'rysunek-' : 'zdjecie-') + (i + 1) + '.' + ext, {type:p.file.type || 'image/jpeg'});
   });
   var longProg = $('#ai-incProg').checked && !$('#ai-progWrap').hidden && progText().length > LONG_PROG;
   if (longProg){
@@ -142,8 +146,10 @@ function setAnswer(text, quiet){
   if (!text) return;
   AI.answer = text;
   store.set('aiAnswer', {t:text, at:Date.now()});
+  var w = store.get('aiWait', null);
   store.set('aiWait', null);
   renderAnswer();
+  if (w && w.target === 'gen'){ var fe = genFeatures(text); if (fe){ genImport(fe); return; } }
   if (!quiet){
     toast('Odpowiedź z AI jest w aplikacji');
     setTimeout(function(){ $('#ai-anscard').scrollIntoView({behavior:'smooth', block:'start'}); }, 80);
@@ -158,7 +164,11 @@ function renderAnswer(){
   var code = extractCode(AI.answer);
   $('#ai-insert').hidden = !code;
   if (code){ var n = code.split('\n').length; $('#ai-insert').lastChild.textContent = 'Wstaw kod do Programu (' + n + ' ' + plLines(n) + ')'; }
+  var fe = genFeatures(AI.answer);
+  $('#ai-insert').hidden = !code || !!fe;
+  $('#ai-genIns').hidden = !fe;
 }
+$('#ai-genIns').addEventListener('click', function(){ var fe = genFeatures(AI.answer || ''); if (fe) genImport(fe); });
 $('#ai-insert').addEventListener('click', function(){ var code = extractCode(AI.answer || ''); if (code) insertCode(code); });
 $('#ai-ansCopy').addEventListener('click', function(){ if (AI.answer) copyText(AI.answer); });
 $('#ai-ansClear').addEventListener('click', function(){ AI.answer = ''; store.set('aiAnswer', null); renderAnswer(); });
@@ -233,19 +243,28 @@ var CLAUDE_URL = 'https://claude.ai/artifact/YVM71eUHrsapEhqtbPeTW3';
 AI.sample = null; AI.sampleImages = false; AI.chat = []; AI.busy = false; AI.ctrl = null;
 
 function setAIMode(){
-  var acc = !!AI.sample;
+  AI.mode = apiReady() ? 'api' : (AI.sample ? 'acc' : 'share');
+  var acc = AI.mode !== 'share';
   $('#ai-askbox').hidden = !acc;
   $('#ai-sharebox').hidden = acc;
   $('#ai-claudecard').hidden = acc || !IS_PWA;
   $('#ai-openClaude').href = CLAUDE_URL;
   $('#ai-status').hidden = !acc;
-  if (acc){
+  $('#ai-ask').lastChild.textContent = 'Zapytaj ' + (AI.mode === 'api' ? apiName() : 'Claude');
+  $('#ai-apicard').hidden = !IS_PWA || AI.mode === 'api';
+  if (AI.mode === 'api'){
+    $('#ai-lead').textContent = apiName() + ' odpowie tutaj, w aplikacji. Możesz dołączyć zdjęcia i PDF rysunku.';
+    $('#ai-status').innerHTML = '<div class="connrow"><span class="chip ok">Połączono</span><span class="connname">' + esc(apiName()) + ' · ' + esc(apiModel()) + '</span><button type="button" class="btn ghost push" data-apiset>Zmień</button></div>';
+    $('#ai-photoBtns').hidden = false;
+    $('#ai-acc-warn').textContent = 'Zdjęcia, rysunki i program trafią do ' + PROV[APIS.prov].firm + ' przez Twój klucz API. Sprawdź, czy firma pozwala wysyłać dokumentację klientów.';
+  } else if (acc){
+    $('#ai-acc-warn').textContent = 'Zdjęcia i program trafią do Claude na Twoim koncie. Sprawdź, czy firma pozwala wysyłać programy i rysunki klientów.';
     $('#ai-lead').textContent = 'Claude odpowie tutaj, na Twoim koncie Claude. Przy pierwszym pytaniu Claude poprosi o zgodę.';
     $('#ai-status').innerHTML = '<div class="connrow"><span class="chip ok">Zalogowano</span><span class="connname">Twoje konto Claude</span></div>' +
       (AI.sampleImages ? '' : '<p class="fine">W tym widoku nie można wysyłać zdjęć — wpisz pytanie albo dołącz program z zakładki Program.</p>');
     $('#ai-photoBtns').hidden = !AI.sampleImages;
   } else {
-    $('#ai-lead').textContent = 'Przygotuję zdjęcie i pytanie, a Ty wyślesz je do ChatGPT, Claude albo Gemini na swoim telefonie.';
+    $('#ai-lead').textContent = 'Przygotuję zdjęcie i pytanie, a Ty wyślesz je do ChatGPT, Claude albo Gemini na swoim telefonie. Albo połącz klucz API — odpowiedź będzie od razu tutaj.';
     $('#ai-photoBtns').hidden = false;
   }
 }
@@ -284,22 +303,24 @@ function drawChatSoon(){ if (chatQueued) return; chatQueued = true; requestAnima
 function drawChat(){
   $('#ai-new').hidden = !AI.chat.length || AI.busy;
   $('#ai-ask').hidden = AI.busy; $('#ai-stop').hidden = !AI.busy;
-  $('#ai-ask').lastChild.textContent = AI.chat.length ? 'Zapytaj ponownie' : 'Zapytaj Claude';
+  $('#ai-ask').lastChild.textContent = AI.chat.length ? 'Zapytaj ponownie' : 'Zapytaj ' + (AI.mode === 'api' ? apiName() : 'Claude');
   $('#ai-chat').innerHTML = AI.chat.map(function(t, i){
     if (t.role === 'user'){
       return '<div class="msg u">' + (t.urls.length ? '<div class="uimgs">' + t.urls.map(function(u){ return '<img src="' + u + '" alt="Wysłane zdjęcie">'; }).join('') + '</div>' : '') + esc(t.show) + '</div>';
     }
-    if (t.pending && !t.content) return '<div class="msg a"><span class="thinking" aria-label="Claude myśli"><i></i><i></i><i></i></span></div>';
-    var r = md(t.content || '');
+    if (t.pending && !t.content) return '<div class="msg a"><span class="thinking" aria-label="AI myśli"><i></i><i></i><i></i></span></div>';
+    var r = md(t.content || ''), fe = !t.pending && t.content ? genFeatures(t.content) : null;
     return '<div class="msg a' + (t.error ? ' err' : '') + '">' + r.html + (t.error ? '<p class="errline">' + esc(t.error) + '</p>' : '') +
       (!t.pending && t.content ? '<div class="acts"><button type="button" class="btn" data-copy="' + i + '">Kopiuj</button>' +
-        (r.blocks.length ? '<button type="button" class="btn primary" data-insert="' + i + '">Wstaw kod do Programu</button>' : '') + '</div>' : '') + '</div>';
+        (fe ? '<button type="button" class="btn primary" data-genins="' + i + '">Wczytaj do Nowego programu</button>' : r.blocks.length ? '<button type="button" class="btn primary" data-insert="' + i + '">Wstaw kod do Programu</button>' : '') + '</div>' : '') + '</div>';
   }).join('');
 }
 $('#ai-chat').addEventListener('click', function(e){
   var c = e.target.closest('[data-copy]'), ins = e.target.closest('[data-insert]');
   if (c) copyText(AI.chat[+c.getAttribute('data-copy')].content);
   if (ins){ var code = extractCode(AI.chat[+ins.getAttribute('data-insert')].content); if (code) insertCode(code); }
+  var gi = e.target.closest('[data-genins]');
+  if (gi){ var fe = genFeatures(AI.chat[+gi.getAttribute('data-genins')].content); if (fe) genImport(fe); }
 });
 
 var SAMPLE_ERR = {
@@ -310,14 +331,16 @@ var SAMPLE_ERR = {
   prompt_too_large:'Za dużo tekstu naraz. Wyślij krótszy fragment programu.', empty_completion:'Brak odpowiedzi. Spróbuj inaczej sformułować pytanie.'
 };
 $('#ai-ask').addEventListener('click', function(){
-  if (AI.busy || !AI.sample || !validateAI()) return;
+  if (AI.busy || AI.mode === 'share' || !validateAI()) return;
   var q = $('#ai-q').value.trim() || 'Pomóż mi z tym, co jest na zdjęciu.';
   var full = (AI.chat.length ? '' : aiContext() + '\n\n') + q;
   if ($('#ai-incProg').checked && progText() && !$('#ai-progWrap').hidden) full += '\n\nProgram:\n```\n' + progText().slice(0, 60000) + '\n```';
-  var photos = AI.sampleImages ? AI.photos.slice() : [];
+  var photos = AI.mode === 'api' || AI.sampleImages ? AI.photos.slice() : [];
   var history = AI.chat.filter(function(t){ return !(t.role === 'assistant' && (t.error || !t.content)); }).slice(-10)
     .map(function(t){ return {role:t.role, content:t.content}; });
   while (history.length && history[0].role !== 'user') history.shift();
+  // pary user/assistant bez zawieszonych pytań
+  history = history.filter(function(t, k, a){ return t.role === 'assistant' || (a[k + 1] && a[k + 1].role === 'assistant'); });
   var userTurn = {role:'user', show:AI_ACTS[AI.act].label || q, content:full, urls:photos.map(function(p){ return p.url; })};
   if (AI.act === 'ask') userTurn.show = q;
   var ans = {role:'assistant', content:'', pending:true};
@@ -325,6 +348,14 @@ $('#ai-ask').addEventListener('click', function(){
   AI.photos = []; renderAI();
   AI.busy = true; AI.ctrl = new AbortController(); drawChat();
   setTimeout(function(){ var m = $$('#ai-chat .msg'); if (m.length) m[m.length - 1].scrollIntoView({behavior:'smooth', block:'center'}); }, 60);
+  if (AI.mode === 'api'){
+    prepFiles(photos.map(function(p){ return p.file; })).then(function(files){
+      return apiCall({system:aiContext(), signal:AI.ctrl.signal, turns:history.map(function(t){ return {role:t.role, text:t.content}; }).concat([{role:'user', text:q + (full.indexOf('\n\nProgram:\n') >= 0 ? full.slice(full.indexOf('\n\nProgram:\n')) : ''), files:files}])});
+    }).then(function(text){ ans.content = text; if (!text) ans.error = 'Pusta odpowiedź. Spróbuj inaczej sformułować pytanie.'; }, function(e){
+      ans.error = e && e.name === 'AbortError' ? 'Zatrzymano.' : (e && e.message) || 'Nie udało się połączyć z AI.';
+    }).then(function(){ ans.pending = false; AI.busy = false; AI.ctrl = null; drawChat(); });
+    return;
+  }
   var opts = {onText:function(u){ ans.content = u.text; drawChatSoon(); }, signal:AI.ctrl.signal, cache:false};
   if (photos.length) opts.images = photos.map(function(p){ return p.file; });
   AI.sample(history.concat([{role:'user', content:full}]), opts).then(function(r){ ans.content = r.text; }, function(e){

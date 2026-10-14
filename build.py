@@ -11,7 +11,7 @@ def rd(name):
         return f.read()
 
 def fill(s):
-    return s.replace('/*{{CORE}}*/', rd('core.js')).replace('/*{{DATA}}*/', rd('data.js')).replace('/*{{CODES}}*/', rd('codes.js')).replace('/*{{UI}}*/', rd('ui.js')).replace('/*{{SIM}}*/', rd('simui.js')).replace('/*{{GUIDES}}*/', rd('guides.js')).replace('/*{{AI}}*/', rd('ai.js'))
+    return s.replace('/*{{CORE}}*/', rd('core.js')).replace('/*{{DATA}}*/', rd('data.js')).replace('/*{{CODES}}*/', rd('codes.js')).replace('/*{{UI}}*/', rd('ui.js')).replace('/*{{SIM}}*/', rd('simui.js')).replace('/*{{GUIDES}}*/', rd('guides.js')).replace('/*{{DIAG}}*/', rd('diag.js')).replace('/*{{AIAPI}}*/', rd('aiapi.js')).replace('/*{{AI}}*/', rd('ai.js')).replace('/*{{GEN}}*/', rd('gen.js'))
 head = rd('head.html')
 body = fill(rd('body.html'))
 
@@ -81,6 +81,7 @@ manifest = {
     "shortcuts": [
         {"name": "Korekcja z pomiaru", "short_name": "Korekcja", "url": "./#korekcja", "icons": [{"src": "icons/icon-96.png", "sizes": "96x96"}]},
         {"name": "Zmiana programu", "short_name": "Program", "url": "./#gcode", "icons": [{"src": "icons/icon-96.png", "sizes": "96x96"}]},
+        {"name": "Nowy program", "short_name": "Nowy", "url": "./#nowy", "icons": [{"src": "icons/icon-96.png", "sizes": "96x96"}]},
         {"name": "Alarmy", "short_name": "Alarmy", "url": "./#alarmy", "icons": [{"src": "icons/icon-96.png", "sizes": "96x96"}]}
     ]
 }
