@@ -191,8 +191,9 @@ function simulateProgram(text, ctl, opts){
   var pos = {x:null, y:null, z:null}, abs = true, motion = 0, plane = 17, comp = 40, feed = null;
   var cycF = null, cycZ = null, cycR = null, mcall = null;
   var segs = [], steps = [], notes = {}, noteOrder = [];
+  var rot = {A:0, B:0, C:0}, frame = null, tcp = false, rotUsed = false;
   var tool = null, tdia = null, pendT = null, pendD = null, lastDia = null, cycKind = null, ln = 0, zUnknown = false;
-  function addSeg(o){ o.tool = tool; o.td = tdia; o.comp = comp; if (zUnknown) o.zu = true; if (o.type === 'hole') o.cyc = cycKind; segs.push(o); }
+  function addSeg(o){ o.tool = tool; o.td = tdia; o.comp = comp; o.rot = {A:rot.A, B:rot.B, C:rot.C}; o.F = frame; o.tcp = tcp; if (zUnknown) o.zu = true; if (o.type === 'hole') o.cyc = cycKind; segs.push(o); }
   function note(k, t){ if (!notes[k]){ notes[k] = t; noteOrder.push(k); } }
   function pt(p){ return [p.x, p.y, p.z == null ? 0 : p.z]; }
   function hole(ln, x, y, depth, top){
@@ -209,12 +210,13 @@ function simulateProgram(text, ctl, opts){
     if (lineDia > 0) lastDia = {d:lineDia, ln:ln}; else lineDia = null;
     var tName = ctl === 'sinumerik' ? line.match(/(^|[^A-Z_])T\s*=\s*"([^"]*)"/i) : null;
     if (!code.trim()) return;
-    var w = simWords(code), g = [], ax = {}, I = null, J = null, R = null, T = null, Ms = [], hasF = false;
+    var w = simWords(code), g = [], ax = {}, I = null, J = null, K = null, R = null, T = null, Ms = [], hasF = false, rw = {};
     w.forEach(function(p){
       var k = p[0], v = p[1];
       if (k === 'G') g.push(v);
       else if (k === 'X' || k === 'Y' || k === 'Z') ax[k.toLowerCase()] = v;
       else if (k === 'I') I = v; else if (k === 'J') J = v;
+      else if (k === 'A' || k === 'B' || (k === 'C' && !/(^|[^A-Z_])CR\s*=/.test(code))) rw[k] = v;
       else if (k === 'R' || k === 'CR') R = v;
       else if (k === 'F'){ feed = v; hasF = true; }
       else if (k === 'T') T = v;
@@ -224,10 +226,35 @@ function simulateProgram(text, ctl, opts){
     if (T != null){ pendT = T; pendD = lineDia || (lastDia && ln - lastDia.ln <= 5 ? lastDia.d : null); if (opts.tools && opts.tools[T] > 0) pendD = opts.tools[T]; }
     if (Ms.indexOf(6) >= 0 || (T != null && tool == null && ctl === 'fanuc' && /M\s*0*6(?!\d)/.test(code))){ tool = pendT; tdia = lineDia || pendD; }
     else if (T != null && ctl === 'sinumerik' && Ms.indexOf(6) < 0 && tool == null){ /* Sinumerik: T wybiera, M6 zmienia */ }
+    var km = code.match(/(^|[^A-Z_])K\s*=?\s*([+-]?(?:\d+\.?\d*|\.\d+))/); if (km) K = parseFloat(km[2]);
+    // płaszczyzna pochylona / TCP / osie obrotowe
+    var g682 = g.some(function(v){ return Math.abs(v - 68.2) < 1e-6; });
+    if (g682){
+      frame = eulerFrame(ax.x || 0, ax.y || 0, ax.z || 0, I || 0, J || 0, K || 0);
+      steps.push({ln:ln, text:'Płaszczyzna pochylona G68.2: I' + fmtN(I || 0) + ' J' + fmtN(J || 0) + ' K' + fmtN(K || 0) + ' — od teraz X, Y, Z liczone w pochylonym układzie', seg:segs.length});
+      return;
+    }
+    if (g.some(function(v){ return v === 69; })){ frame = null; }
+    if (g.some(function(v){ return Math.abs(v - 43.4) < 1e-6 || Math.abs(v - 43.5) < 1e-6; })) tcp = true;
+    if (g.some(function(v){ return v === 49; })) tcp = false;
+    if (ctl === 'sinumerik'){
+      if (/(^|[^A-Z_])TRAORI(?![A-Z_])/.test(code)) tcp = true;
+      if (/(^|[^A-Z_])TRAFOOF(?![A-Z_])/.test(code)) tcp = false;
+      var c8 = code.match(/CYCLE800\s*\(([^)]*)\)/);
+      if (c8){
+        var q8 = c8[1].split(',').map(function(x){ return parseFloat(x); });
+        if (!c8[1].trim() || (q8.slice(7, 10).every(function(x){ return !x; }) && q8.slice(4, 7).every(function(x){ return !x; }))) frame = null;
+        else frame = axisFrame(q8[4] || 0, q8[5] || 0, q8[6] || 0, q8[7] || 0, q8[8] || 0, q8[9] || 0, q8[10] || 0, q8[11] || 0, q8[12] || 0);
+        steps.push({ln:ln, text:frame ? 'Płaszczyzna pochylona CYCLE800 (pokazana w przybliżeniu: obrót X, potem Y, potem Z)' : 'Wyłączenie płaszczyzny pochylonej', seg:segs.length});
+        return;
+      }
+    }
+    var rotDesc = [];
+    ['A', 'B', 'C'].forEach(function(k){ if (k in rw){ rot[k] = abs ? rw[k] : rot[k] + rw[k]; rotUsed = true; rotDesc.push(k + fmtN(rot[k]) + '°'); } });
     var desc = [], moveGiven = ('x' in ax) || ('y' in ax) || ('z' in ax);
     var machineCoords = g.some(function(v){ return v === 53 || v === 28 || v === 30; }) || /(^|[^A-Z_])(SUPA|G153|G74)(?![A-Z_\d])/.test(code);
-    if (/G\s*0*68\.2|G\s*0*68(?![\d.])|CYCLE800|TRAORI|G\s*0*43\.4|(^|[^A-Z_])(A?TRANS|A?ROT|A?MIRROR|A?SCALE)(?![A-Z_\d])|G\s*0*5[12](?![\d])/.test(code))
-      note('trans', 'Podgląd nie uwzględnia obrotu, przesunięcia, lustra ani pochylenia układu (G68, G68.2, G52, TRANS, ROT, CYCLE800, TCP) — tor jest rysowany w układzie programu.');
+    if (/G\s*0*68(?![\d.])|(^|[^A-Z_])(A?TRANS|A?ROT|A?MIRROR|A?SCALE)(?![A-Z_\d])|G\s*0*5[12](?![\d])/.test(code))
+      note('trans', 'Podgląd nie uwzględnia obrotu 2D, przesunięcia, lustra ani skali (G68, G52, TRANS, ROT, MIRROR) — tor jest rysowany w układzie programu.');
     if (/M\s*0*98|M\s*0*99|(^|[^A-Z_])L\d+|(^|[^A-Z_])CALL(?![A-Z_])/.test(code)) note('sub', 'Podprogramy nie są rozwijane w podglądzie.');
     g.forEach(function(v){
       if (v === 90) abs = true; else if (v === 91) abs = false;
@@ -238,6 +265,8 @@ function simulateProgram(text, ctl, opts){
       else if ([73, 74, 76, 81, 82, 83, 84, 85, 86, 87, 88, 89].indexOf(v) >= 0 && ctl === 'fanuc'){ cycF = v; }
       else if (v === 43 && !machineCoords) desc.push('Korekcja długości narzędzia');
     });
+    if (rotDesc.length) desc.push('Oś obrotowa: ' + rotDesc.join(' ') + (tcp ? ' (z TCP — czubek narzędzia w układzie detalu)' : ''));
+    if (g.some(function(v){ return Math.abs(v - 53.1) < 1e-6; })) desc.push('Ustawienie osi obrotowych do płaszczyzny pochylonej (G53.1)');
     if (plane !== 17) note('plane', 'Łuki w płaszczyźnie G18/G19 są pokazane w przybliżeniu.');
     if (T != null && Ms.indexOf(6) >= 0) desc.push('Zmiana narzędzia na T' + fmtN(T));
     else if (T != null) desc.push('Wybór narzędzia T' + fmtN(T));
@@ -327,6 +356,7 @@ function simulateProgram(text, ctl, opts){
     if (desc.length) steps.push({ln:ln, text:desc.join(' · '), seg:segs.length});
   });
   if (!abs) note('inc', 'Program kończy się w trybie przyrostowym G91 — sprawdź, czy tak ma być.');
+  if (frame || tcp) note('five5', 'Program kończy się z aktywną płaszczyzną pochyloną albo TCP — sprawdź G69 / G49 (TRAFOOF, CYCLE800()).');
   return {segs:segs, steps:steps, notes:noteOrder.map(function(k){ return notes[k]; })};
 }
 function arcPoints(s, n){
@@ -768,6 +798,7 @@ function compPaths(segs, defD){
   return notes;
 }
 function segPath(s){
+  if (s.pts) return s.pts;
   if (s.cpath) return s.cpath;
   if (s.type === 'arc') return arcPoints(s);
   return [s.a, s.b];
@@ -823,6 +854,114 @@ function cutSegs(st, segs, from, to, defD){
     }
     var P = segPath(s);
     for (var q = 1; q < P.length; q++) hits += cutPiece(st, P[q - 1], P[q], r, {rapid:s.type === 'rapid'});
+    if (hits && bad.indexOf(s.ln) < 0) bad.push(s.ln);
+  }
+  return bad;
+}
+
+
+/* ===== 5 osi: płaszczyzna pochylona, TCP, osie obrotowe ===== */
+function m3mul(A, B){ var o = []; for (var i = 0; i < 3; i++) for (var j = 0; j < 3; j++) o[i * 3 + j] = A[i * 3] * B[j] + A[i * 3 + 1] * B[3 + j] + A[i * 3 + 2] * B[6 + j]; return o; }
+function m3v(A, v){ return [A[0] * v[0] + A[1] * v[1] + A[2] * v[2], A[3] * v[0] + A[4] * v[1] + A[5] * v[2], A[6] * v[0] + A[7] * v[1] + A[8] * v[2]]; }
+function m3t(A){ return [A[0], A[3], A[6], A[1], A[4], A[7], A[2], A[5], A[8]]; }
+function rX(d){ var a = d * Math.PI / 180, c = Math.cos(a), s = Math.sin(a); return [1, 0, 0, 0, c, -s, 0, s, c]; }
+function rY(d){ var a = d * Math.PI / 180, c = Math.cos(a), s = Math.sin(a); return [c, 0, s, 0, 1, 0, -s, 0, c]; }
+function rZ(d){ var a = d * Math.PI / 180, c = Math.cos(a), s = Math.sin(a); return [c, -s, 0, s, c, 0, 0, 0, 1]; }
+/* Fanuc G68.2: kąty Eulera I (wokół Z), J (wokół nowego X), K (wokół nowego Z) */
+function eulerFrame(x, y, z, I, J, K){ return {o:[x, y, z], R:m3mul(m3mul(rZ(I), rX(J)), rZ(K))}; }
+/* Sinumerik CYCLE800 w trybie osiowym: przesunięcie, obrót X → Y → Z, przesunięcie po obrocie (przybliżenie) */
+function axisFrame(x0, y0, z0, a, b, c, x1, y1, z1){ var R = m3mul(m3mul(rX(a), rY(b)), rZ(c)), o1 = m3v(R, [x1, y1, z1]); return {o:[x0 + o1[0], y0 + o1[1], z0 + o1[2]], R:R}; }
+/* Stół uchylno-obrotowy: detal → maszyna. Uchył A (wokół X) albo B (wokół Y), obrót C (wokół Z stołu). */
+function tableRot(rot, tilt){ return m3mul(tilt === 'B' ? rY(rot.B || 0) : rX(rot.A || 0), rZ(rot.C || 0)); }
+/* Kąty A/C dla zadanej osi narzędzia v (w układzie detalu): v = (sinA·sinC, sinA·cosC, cosA); preferujemy A ≤ 0 */
+function rotFromAxis(v){
+  var A = -Math.acos(Math.max(-1, Math.min(1, v[2]))) * 180 / Math.PI, sA = Math.sin(A * Math.PI / 180);
+  var C = Math.abs(sA) < 1e-9 ? 0 : Math.atan2(v[0] / sA, v[1] / sA) * 180 / Math.PI;
+  return {A:r3(A), B:0, C:r3(C)};
+}
+function resetLocal(segs){
+  segs.forEach(function(s){
+    if (s.la){ s.a = s.la.slice(); s.b = s.lb.slice(); } else { s.la = s.a.slice(); s.lb = s.b.slice(); }
+    delete s.cpath; delete s.pts; delete s.v; delete s.mrot; s.five = false;
+  });
+}
+/* Przelicz odcinki z układu programu do układu detalu (G54). Zwraca true, gdy program jest 5-osiowy. */
+function partTransform(segs, tilt){
+  var any = false;
+  if (!tilt) tilt = segs.some(function(s){ return s.rot && s.rot.B; }) ? 'B' : 'A';
+  segs.forEach(function(s){
+    var rot = s.rot || {A:0, B:0, C:0}, hasRot = !!(rot.A || rot.B || rot.C);
+    if (!s.F && !hasRot) return;
+    var P = s.cpath || (s.type === 'arc' ? arcPoints(s) : [s.a, s.b]), pts, v;
+    if (s.F){
+      pts = P.map(function(p){ var q = m3v(s.F.R, p); return [q[0] + s.F.o[0], q[1] + s.F.o[1], q[2] + s.F.o[2]]; });
+      v = m3v(s.F.R, [0, 0, 1]);
+      s.mrot = hasRot ? rot : rotFromAxis(v);
+    } else {
+      var Rt = m3t(tableRot(rot, tilt));
+      pts = s.tcp ? P.map(function(p){ return p.slice(); }) : P.map(function(p){ return m3v(Rt, p); });
+      v = m3v(Rt, [0, 0, 1]);
+      s.mrot = rot;
+    }
+    s.pts = pts; s.a = pts[0].slice(); s.b = pts[pts.length - 1].slice(); s.v = v; s.five = true; s.tilt = tilt;
+    if (Math.abs(v[2] - 1) > 1e-6) any = true;
+  });
+  return any;
+}
+
+/* Materiał wokselowy (dla 5 osi): 1 = materiał, 0 = zebrany, 2 = zebrany ruchem szybkim */
+function makeVox(x0, y0, z0, x1, y1, z1, maxCells){
+  var c = Math.max(x1 - x0, y1 - y0, z1 - z0, 1) / (maxCells || 120);
+  var nx = Math.max(2, Math.ceil((x1 - x0) / c)), ny = Math.max(2, Math.ceil((y1 - y0) / c)), nz = Math.max(2, Math.ceil((z1 - z0) / c));
+  var v = new Uint8Array(nx * ny * nz); v.fill(1);
+  return {vox:true, x0:x0, y0:y0, z0:z0, c:c, cell:c, nx:nx, ny:ny, nz:nz, v:v, top:z1, bot:z0};
+}
+/* Walec narzędzia (oś ax, długość L od czubka) przesunięty od a do b. */
+function voxCut(vx, a, b, ax, r, L, opt){
+  opt = opt || {};
+  var c = vx.c, hits = 0, e = [a[0] + ax[0] * L, a[1] + ax[1] * L, a[2] + ax[2] * L], f = [b[0] + ax[0] * L, b[1] + ax[1] * L, b[2] + ax[2] * L];
+  var lo = [Math.min(a[0], b[0], e[0], f[0]) - r, Math.min(a[1], b[1], e[1], f[1]) - r, Math.min(a[2], b[2], e[2], f[2]) - r];
+  var hi = [Math.max(a[0], b[0], e[0], f[0]) + r, Math.max(a[1], b[1], e[1], f[1]) + r, Math.max(a[2], b[2], e[2], f[2]) + r];
+  var i0 = Math.max(0, Math.floor((lo[0] - vx.x0) / c)), i1 = Math.min(vx.nx - 1, Math.floor((hi[0] - vx.x0) / c));
+  var j0 = Math.max(0, Math.floor((lo[1] - vx.y0) / c)), j1 = Math.min(vx.ny - 1, Math.floor((hi[1] - vx.y0) / c));
+  var k0 = Math.max(0, Math.floor((lo[2] - vx.z0) / c)), k1 = Math.min(vx.nz - 1, Math.floor((hi[2] - vx.z0) / c));
+  if (i0 > i1 || j0 > j1 || k0 > k1) return 0;
+  var d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], dv = d[0] * ax[0] + d[1] * ax[1] + d[2] * ax[2];
+  var dp = [d[0] - dv * ax[0], d[1] - dv * ax[1], d[2] - dv * ax[2]], dpp = dp[0] * dp[0] + dp[1] * dp[1] + dp[2] * dp[2], r2 = r * r;
+  var nxy = vx.nx * vx.ny, cone = opt.cone ? 0.6 : 0;
+  for (var k = k0; k <= k1; k++){
+    var qz = vx.z0 + (k + 0.5) * c;
+    for (var j = j0; j <= j1; j++){
+      var qy = vx.y0 + (j + 0.5) * c, base = k * nxy + j * vx.nx;
+      for (var i = i0; i <= i1; i++){
+        var idx = base + i; if (!vx.v[idx] || (vx.v[idx] !== 1 && !opt.rapid)) { if (vx.v[idx] !== 1) continue; }
+        var qx = vx.x0 + (i + 0.5) * c, w0 = qx - a[0], w1 = qy - a[1], w2 = qz - a[2];
+        var s0 = w0 * ax[0] + w1 * ax[1] + w2 * ax[2];
+        var p0 = w0 - s0 * ax[0], p1 = w1 - s0 * ax[1], p2 = w2 - s0 * ax[2], t;
+        if (dpp > 1e-12){ t = (p0 * dp[0] + p1 * dp[1] + p2 * dp[2]) / dpp; t = t < 0 ? 0 : t > 1 ? 1 : t; }
+        else t = Math.abs(dv) > 1e-12 ? Math.max(0, Math.min(1, s0 / dv)) : 0;
+        var e0 = p0 - t * dp[0], e1 = p1 - t * dp[1], e2 = p2 - t * dp[2], dd = e0 * e0 + e1 * e1 + e2 * e2;
+        if (dd > r2) continue;
+        var sa = s0 - t * dv;
+        if (sa < (cone ? Math.sqrt(dd) * cone : 0) - c * 0.5 || sa > L) continue;
+        if (opt.rapid){ var rr = r - c * 1.5; if (dd <= rr * rr && sa > c){ vx.v[idx] = 2; hits++; } else vx.v[idx] = 0; } else vx.v[idx] = 0;
+      }
+    }
+  }
+  return hits;
+}
+function voxCutSegs(vx, segs, from, to, defD){
+  var bad = [];
+  for (var n = from; n < to; n++){
+    var s = segs[n]; if (s.zu) continue;
+    var r = ((s.td > 0 ? s.td : defD) || 10) / 2, ax = s.v || [0, 0, 1], L = Math.max(r * 3, 12), hits = 0;
+    if (s.type === 'hole'){
+      var dep = Math.hypot(s.a[0] - s.b[0], s.a[1] - s.b[1], s.a[2] - s.b[2]);
+      voxCut(vx, s.b, s.b, ax, r, dep + L, {cone:[73, 81, 82, 83].indexOf(s.cyc) >= 0});
+      continue;
+    }
+    var P = segPath(s);
+    for (var q = 1; q < P.length; q++) hits += voxCut(vx, P[q - 1], P[q], ax, r, L, {rapid:s.type === 'rapid'});
     if (hits && bad.indexOf(s.ln) < 0) bad.push(s.ln);
   }
   return bad;

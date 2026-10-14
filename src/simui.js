@@ -17,14 +17,14 @@ var SIM_EX = {
 function SimView(root, opts){
   opts = opts || {};
   var self = this, view = store.get('simview', '3d'), cur = 0, anim = null, frac = 0, partCut = 0, speed = +store.get('simspeed', 1) || 1, data = null, cmp = null, lines = [], ctlNow = 'fanuc', setOpts = {};
-  var s3 = null, st = null, applied = 0, stockKey = '', bad3 = [], defD = parseNum(store.get('simD', '10')) || 10, userStock = null;
+  var view5 = store.get('simview5', 'part'), s3 = null, st = null, applied = 0, stockKey = '', bad3 = [], defD = parseNum(store.get('simD', '10')) || 10, userStock = null;
   root.innerHTML =
     '<div class="simhead"><span class="lab">' + (opts.title || 'Podgląd ruchów') + '</span>' +
     '<div class="seg small"><button type="button" data-v="3d">3D</button><button type="button" data-v="xy">Z góry</button><button type="button" data-v="xz">Z boku</button></div></div>' +
     '<svg class="simsvg" viewBox="0 0 320 220" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Rysunek toru narzędzia"></svg>' +
     '<div class="sim3d" hidden><div class="sim3dc"></div>' +
       '<p class="sim3dhint">Przeciągnij — obrót · dwa palce — przybliżenie i przesunięcie · stuknij w detal — pomiar punktu</p>' +
-      '<div class="sim3dbar"><button type="button" class="btn" data-s3="reset">Widok od nowa</button><button type="button" class="btn" data-s3="stock">Półfabrykat</button></div>' +
+      '<div class="sim3dbar"><div class="seg small s3five" hidden><button type="button" data-v5="part">Detal</button><button type="button" data-v5="machine">Maszyna</button></div><button type="button" class="btn" data-s3="reset">Widok od nowa</button><button type="button" class="btn" data-s3="stock">Półfabrykat</button></div>' +
       '<div class="stockbox" hidden></div></div>' +
     '<div class="simctl"><button type="button" class="simbtn" data-a="prev" aria-label="Poprzedni krok">‹</button>' +
     '<button type="button" class="simbtn play" data-a="play" aria-label="Odtwórz">▶</button>' +
@@ -48,7 +48,10 @@ function SimView(root, opts){
   });
   markView();
   var box3 = root.querySelector('.sim3d'), stockBox = root.querySelector('.stockbox');
+  function markV5(){ Array.prototype.forEach.call(box3.querySelectorAll('[data-v5]'), function(x){ x.setAttribute('aria-pressed', String(x.getAttribute('data-v5') === view5)); }); }
   box3.addEventListener('click', function(e){
+    var b5 = e.target.closest('[data-v5]');
+    if (b5){ view5 = b5.getAttribute('data-v5'); store.set('simview5', view5); markV5(); if (s3) s3.reset(); draw(); return; }
     var b = e.target.closest('[data-s3]'); if (!b) return;
     var a = b.getAttribute('data-s3');
     if (a === 'reset' && s3) s3.reset();
@@ -114,7 +117,8 @@ function SimView(root, opts){
       var x = P.p[q], s0 = acc, s1 = acc + x.l; acc = s1;
       if (s1 <= L0 || !x.cut) continue; if (s0 >= L1) break;
       var ta = x.l > 1e-9 ? Math.max(0, (L0 - s0) / x.l) : 0, tb = x.l > 1e-9 ? Math.min(1, (L1 - s0) / x.l) : 1;
-      cutPiece(st, lerp(x.a, x.b, ta), lerp(x.a, x.b, tb), segR(x.s), {rapid:x.s.type === 'rapid'});
+      if (st.vox) voxCut(st, lerp(x.a, x.b, ta), lerp(x.a, x.b, tb), x.s.v || [0, 0, 1], segR(x.s), Math.max(segR(x.s) * 3, 12), {rapid:x.s.type === 'rapid'});
+      else cutPiece(st, lerp(x.a, x.b, ta), lerp(x.a, x.b, tb), segR(x.s), {rapid:x.s.type === 'rapid'});
     }
   }
   function toggle(){
@@ -167,6 +171,7 @@ function SimView(root, opts){
 
   function proj(p){ return view === 'xy' ? [p[0], p[1]] : [p[0], p[2]]; }
   function segPts(s){
+    if (s.pts) return s.pts;
     if (s.type === 'arc') return arcPoints(s);
     return [s.a, s.b];
   }
@@ -202,12 +207,13 @@ function SimView(root, opts){
     return A;
   }
   function stockDef(){ var A = autoStock(), U = userStock || {}, o = {}; ['x0', 'y0', 'x1', 'y1', 'top', 'bot'].forEach(function(k){ o[k] = U[k] != null ? U[k] : A[k]; }); if (o.x1 <= o.x0) o.x1 = o.x0 + 1; if (o.y1 <= o.y0) o.y1 = o.y0 + 1; if (o.bot >= o.top) o.bot = o.top - 1; return o; }
-  function newStock(){ var d = stockDef(); return makeStock(d.x0, d.y0, d.x1, d.y1, d.top, d.bot, 360); }
-  function prep(){ if (!data) return; data.segs.forEach(function(s){ delete s.cpath; }); data._poly = null; data.compNotes = compPaths(data.segs, defD); }
+  function newStock(){ var d = stockDef(); return data && data.five ? makeVox(d.x0, d.y0, d.bot, d.x1, d.y1, d.top, 130) : makeStock(d.x0, d.y0, d.x1, d.y1, d.top, d.bot, 360); }
+  function cutAll(stk, from, to){ return stk.vox ? voxCutSegs(stk, data.segs, from, to, defD) : cutSegs(stk, data.segs, from, to, defD); }
+  function prep(){ if (!data) return; resetLocal(data.segs); data._poly = null; data.compNotes = compPaths(data.segs, defD); var mr = MACHINES[S.machine].rot || []; data.five = partTransform(data.segs, mr.indexOf('A') < 0 && mr.indexOf('B') >= 0 ? 'B' : undefined); }
   function check3(){
     // ruch szybki w materiał — sprawdzane na całym programie
     if (!data) return [];
-    return cutSegs(newStock(), data.segs, 0, data.segs.length, defD);
+    return cutAll(newStock(), 0, data.segs.length);
   }
   function draw3(upto){
     if (!s3){
@@ -223,7 +229,7 @@ function SimView(root, opts){
       var keep = !!st && key === stockKey;
       st = newStock(); applied = 0; partCut = 0; s3.setStock(st, keep && stockKey !== ''); stockKey = key;
     }
-    if (upto > applied){ cutSegs(st, data.segs, applied, upto, defD); applied = upto; partCut = 0; s3.meshDirty = true; }
+    if (upto > applied){ cutAll(st, applied, upto); applied = upto; partCut = 0; s3.meshDirty = true; }
     var ci = curStep(), cr = ci >= 0 ? stepSegs(ci) : [0, 0];
     if (anim && cur < data.steps.length){
       var L1 = stepPoly(cur).len * frac;
@@ -231,9 +237,12 @@ function SimView(root, opts){
     }
     s3.setPath(data.segs, upto, cr[0], cr[1]);
     var tp = toolPos();
-    s3.setTool(tp ? tp.p : null, tp ? segR(tp.s) : 5);
-    var stp = ci >= 0 ? data.steps[ci] : null;
-    s3.overlay.innerHTML = stp ? '<span class="s3ln">Linia ' + stp.ln + '</span><code>' + esc((lines[stp.ln - 1] || '').trim().slice(0, 60)) + '</code>' + (tp ? '<span class="s3pos">X ' + fmtP(tp.p[0]) + ' Y ' + fmtP(tp.p[1]) + ' Z ' + fmtP(tp.p[2]) + '</span>' : '') : '';
+    s3.setTool(tp ? tp.p : null, tp ? segR(tp.s) : 5, tp && tp.s && tp.s.v);
+    var mr = tp && tp.s && tp.s.mrot ? tp.s.mrot : null;
+    box3.querySelector('.s3five').hidden = !data.five; markV5();
+    s3.setMachine(data.five && view5 === 'machine' ? tableRot(mr || {A:0, B:0, C:0}, tp && tp.s && tp.s.tilt) : null);
+    var stp = ci >= 0 ? data.steps[ci] : null, tl = tp && tp.s && tp.s.tilt === 'B' ? 'B' : 'A';
+    s3.overlay.innerHTML = stp ? '<span class="s3ln">Linia ' + stp.ln + '</span><code>' + esc((lines[stp.ln - 1] || '').trim().slice(0, 60)) + '</code>' + (tp ? '<span class="s3pos">X ' + fmtP(tp.p[0]) + ' Y ' + fmtP(tp.p[1]) + ' Z ' + fmtP(tp.p[2]) + (data.five ? ' · ' + tl + ' ' + fmtP(mr ? mr[tl] || 0 : 0) + '° C ' + fmtP(mr ? mr.C || 0 : 0) + '°' : '') + '</span>' : '') : '';
     s3.draw();
   }
   function draw(){
@@ -298,6 +307,7 @@ function SimView(root, opts){
       var unk = [];
       data.segs.forEach(function(s){ if (!(s.td > 0) && s.tool != null && s.type !== 'rapid' && unk.indexOf('T' + s.tool) < 0) unk.push('T' + s.tool); });
       if (unk.length) nt.push('Brak średnicy w komentarzu dla: ' + unk.join(', ') + ' — w 3D przyjęto Ø' + fmtN(defD) + ' (zmień w „Półfabrykat”).');
+      if (data.five) nt.push('Program 5-osiowy: tor przeliczony do układu detalu (G54). Płaszczyzna pochylona G68.2 / CYCLE800, TCP (G43.4 / TRAORI) i osie ' + (MACHINES[S.machine].rot || ['A', 'C']).join('/') + ' — kinematyka stołu uchylno-obrotowego przyjęta w przybliżeniu (kierunki obrotu zależą od maszyny). Materiał w 3D jako sześcianiki ok. ' + fmtP(newStock().c || 0).replace(/0+$/, '') + ' mm. „Maszyna” pokazuje stół obrócony o A/C.');
       if (!data.segs.some(function(s){ return s.tool != null; }) && data.segs.length) nt.push('Program bez zmiany narzędzia — w 3D przyjęto frez Ø' + fmtN(defD) + '.');
     }
     var html = (bad3.length ? '<li class="bad">Ruch szybki (G0) wchodzi w materiał w ' + (bad3.length === 1 ? 'linii ' : 'liniach ') + bad3.slice(0, 8).join(', ') + (bad3.length > 8 ? '…' : '') + ' — sprawdź program albo wymiary półfabrykatu.</li>' : '') +

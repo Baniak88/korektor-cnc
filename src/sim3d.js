@@ -37,16 +37,17 @@ function Sim3D(box, opts){
   if (!gl){ off('Ten telefon albo przeglądarka nie obsługuje widoku 3D (WebGL). Użyj widoku z góry i z boku.'); return; }
   var uintIdx = !!gl.getExtension('OES_element_index_uint');
 
-  var VS = 'attribute vec3 p;attribute vec3 n;attribute vec3 c;uniform mat4 M;varying vec3 vn;varying vec3 vc;void main(){gl_Position=M*vec4(p,1.0);vn=n;vc=c;}';
+  var VS = 'attribute vec3 p;attribute vec3 n;attribute vec3 c;uniform mat4 M;uniform mat4 Mo;varying vec3 vn;varying vec3 vc;void main(){gl_Position=M*(Mo*vec4(p,1.0));vn=(Mo*vec4(n,0.0)).xyz;vc=c;}';
   var FS = 'precision mediump float;varying vec3 vn;varying vec3 vc;uniform vec3 L1;uniform vec3 L2;uniform float uFlat;void main(){vec3 N=normalize(vn);float d=0.40+0.52*max(dot(N,L1),0.0)+0.22*max(dot(N,L2),0.0);gl_FragColor=vec4(mix(vc*d,vc,uFlat),1.0);}';
   function sh(t, src){ var s = gl.createShader(t); gl.shaderSource(s, src); gl.compileShader(s); return s; }
   var pr = gl.createProgram(); gl.attachShader(pr, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(pr);
   if (!gl.getProgramParameter(pr, gl.LINK_STATUS)){ off('Nie udało się uruchomić widoku 3D na tym telefonie. Użyj widoku z góry i z boku.'); return; }
   gl.useProgram(pr);
   var aP = gl.getAttribLocation(pr, 'p'), aN = gl.getAttribLocation(pr, 'n'), aC = gl.getAttribLocation(pr, 'c');
+  var uMo = gl.getUniformLocation(pr, 'Mo'), I4 = new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]), MO = I4, ROT = null;
   var uM = gl.getUniformLocation(pr, 'M'), uL1 = gl.getUniformLocation(pr, 'L1'), uL2 = gl.getUniformLocation(pr, 'L2'), uF = gl.getUniformLocation(pr, 'uFlat');
   function mk(){ return {v:gl.createBuffer(), i:gl.createBuffer(), n:0, big:false}; }
-  var bMesh = mk(), bLines = mk(), bCur = mk(), bTool = mk(), bMark = mk();
+  var bMesh = mk(), bLines = mk(), bCur = mk(), bTool = mk(), bMark = mk(), bTable = mk();
   function upload(b, V, I){
     var verts = V.a ? V.a.subarray(0, V.n) : new Float32Array(V), nv = verts.length / 9;
     gl.bindBuffer(gl.ARRAY_BUFFER, b.v); gl.bufferData(gl.ARRAY_BUFFER, verts, gl.DYNAMIC_DRAW);
@@ -62,6 +63,7 @@ function Sim3D(box, opts){
     gl.enableVertexAttribArray(aN); gl.vertexAttribPointer(aN, 3, gl.FLOAT, false, 36, 12);
     gl.enableVertexAttribArray(aC); gl.vertexAttribPointer(aC, 3, gl.FLOAT, false, 36, 24);
     gl.uniform1f(uF, flat ? 1 : 0);
+    gl.uniformMatrix4fv(uMo, false, MO);
     gl.drawElements(mode, b.n, b.big ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
   }
 
@@ -76,8 +78,11 @@ function Sim3D(box, opts){
   this.setStock = function(s, keep){
     st = s; this.meshDirty = true; dirty = true;
     if (keep) return;
-    tgt = [s.x0 + (s.nx - 1) * s.cell / 2, s.y0 + (s.ny - 1) * s.cell / 2, (s.top + s.bot) / 2];
-    span = Math.max((s.nx - 1) * s.cell, (s.ny - 1) * s.cell, (s.top - s.bot) * 1.5, 10);
+    if (s.vox){ tgt = [s.x0 + s.nx * s.c / 2, s.y0 + s.ny * s.c / 2, (s.top + s.bot) / 2]; span = Math.max(s.nx * s.c, s.ny * s.c, s.nz * s.c * 1.3, 10); }
+    else {
+      tgt = [s.x0 + (s.nx - 1) * s.cell / 2, s.y0 + (s.ny - 1) * s.cell / 2, (s.top + s.bot) / 2];
+      span = Math.max((s.nx - 1) * s.cell, (s.ny - 1) * s.cell, (s.top - s.bot) * 1.5, 10);
+    }
     cam.pan = [0, 0, 0]; self.clearPick();
   };
   /* Materiał jako słupki: płaskie góry (łączone w pasy) i pionowe ścianki — ostre krawędzie jak na detalu */
@@ -99,8 +104,48 @@ function Sim3D(box, opts){
     V.n += 36;
     var ia = I.a, io = I.n; ia[io] = b; ia[io+1] = b + 1; ia[io+2] = b + 2; ia[io+3] = b; ia[io+4] = b + 2; ia[io+5] = b + 3; I.n += 6;
   }
+  /* Woksele (5 osi): ścianki między materiałem a pustym miejscem, łączone w pasy */
+  function buildVox(){
+    V.n = 0; I.n = 0;
+    var nx = st.nx, ny = st.ny, nz = st.nz, c = st.c, v = st.v, nxy = nx * ny, x0 = st.x0, y0 = st.y0, z0 = st.z0;
+    function nb(i, j, k){ return (i < 0 || j < 0 || k < 0 || i >= nx || j >= ny || k >= nz) ? 9 : v[k * nxy + j * nx + i]; }
+    function cls(n){ return n === 9 ? 0 : n === 2 ? 2 : n === 0 ? 1 : -1; }
+    function colFor(cl, k, out){
+      if (cl === 2){ out[0] = col.bad[0]; out[1] = col.bad[1]; out[2] = col.bad[2]; return; }
+      if (cl === 1){ var f = Math.min(1, (st.top - (z0 + (k + 0.5) * c)) / Math.max(st.top - st.bot, 1)), m = 1 - 0.45 * Math.max(0, f); out[0] = col.cut[0] * m; out[1] = col.cut[1] * m; out[2] = col.cut[2] * m; return; }
+      out[0] = col.stock[0]; out[1] = col.stock[1]; out[2] = col.stock[2];
+    }
+    var D = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+    D.forEach(function(d){
+      var runY = d[0] !== 0; // ścianki ±X łączone wzdłuż Y, pozostałe wzdłuż X
+      var A = runY ? nx : ny, Bn = runY ? ny : nx;
+      for (var k = 0; k < nz; k++) for (var a = 0; a < A; a++){
+        var b = 0;
+        while (b < Bn){
+          var i = runY ? a : b, j = runY ? b : a, idx = k * nxy + j * nx + i, cl = v[idx] === 1 ? cls(nb(i + d[0], j + d[1], k + d[2])) : -1;
+          if (cl < 0){ b++; continue; }
+          var e = b;
+          while (e + 1 < Bn){ var i2 = runY ? a : e + 1, j2 = runY ? e + 1 : a; if (v[k * nxy + j2 * nx + i2] !== 1 || cls(nb(i2 + d[0], j2 + d[1], k + d[2])) !== cl) break; e++; }
+          colFor(cl, k, C);
+          var xa, xb, ya, yb, za = z0 + k * c, zb = za + c;
+          if (runY){ xa = xb = x0 + (a + (d[0] > 0 ? 1 : 0)) * c; ya = y0 + b * c; yb = y0 + (e + 1) * c; }
+          else { xa = x0 + b * c; xb = x0 + (e + 1) * c; ya = y0 + a * c; yb = ya + c; }
+          if (d[0] > 0) quad(xa, ya, za, xa, yb, za, xa, yb, zb, xa, ya, zb, 1, 0, 0, C);
+          else if (d[0] < 0) quad(xa, yb, za, xa, ya, za, xa, ya, zb, xa, yb, zb, -1, 0, 0, C);
+          else if (d[1] > 0){ var yy = ya + c; quad(xb, yy, za, xa, yy, za, xa, yy, zb, xb, yy, zb, 0, 1, 0, C); }
+          else if (d[1] < 0) quad(xa, ya, za, xb, ya, za, xb, ya, zb, xa, ya, zb, 0, -1, 0, C);
+          else if (d[2] > 0) quad(xa, ya, zb, xb, ya, zb, xb, yb, zb, xa, yb, zb, 0, 0, 1, C);
+          else quad(xa, yb, za, xb, yb, za, xb, ya, za, xa, ya, za, 0, 0, -1, C);
+          b = e + 1;
+        }
+      }
+    });
+    upload(bMesh, V, I);
+    lastBuild = performance.now();
+  }
   function buildMesh(){
     if (!st) return;
+    if (st.vox) return buildVox();
     V.n = 0; I.n = 0;
     var nx = st.nx, ny = st.ny, c = st.cell, h = c / 2, z = st.z, mk = st.mark, x0 = st.x0, y0 = st.y0, bot = st.bot, i, j, k;
     // góry: pasy w wierszach o tej samej wysokości i stanie
@@ -169,24 +214,53 @@ function Sim3D(box, opts){
     upload(bLines, B.v, B.i); upload(bCur, Bc.v, Bc.i); dirty = true;
   };
   /* Narzędzie: walec w pozycji p */
-  this.setTool = function(p, r){
-    if (!p){ bTool.n = 0; dirty = true; return; }
-    var v = [], idx = [], N = 32, h = Math.max(r * 4, span * 0.16), cc = col.tool;
+  function basis(ax){
+    var w = Math.abs(ax[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
+    var u = [ax[1] * w[2] - ax[2] * w[1], ax[2] * w[0] - ax[0] * w[2], ax[0] * w[1] - ax[1] * w[0]], ul = Math.hypot(u[0], u[1], u[2]); u = [u[0] / ul, u[1] / ul, u[2] / ul];
+    var t = [ax[1] * u[2] - ax[2] * u[1], ax[2] * u[0] - ax[0] * u[2], ax[0] * u[1] - ax[1] * u[0]];
+    return [u, t];
+  }
+  function cylinder(V2, I2, p, ax, r, h, cc, cap){
+    var N = 32, B = basis(ax), u = B[0], t = B[1], base = V2.length / 9;
     for (var i = 0; i <= N; i++){
-      var a = i / N * Math.PI * 2, cx = Math.cos(a), sy = Math.sin(a);
-      v.push(p[0] + cx * r, p[1] + sy * r, p[2], cx, sy, 0, cc[0], cc[1], cc[2], p[0] + cx * r, p[1] + sy * r, p[2] + h, cx, sy, 0, cc[0], cc[1], cc[2]);
+      var a = i / N * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a), n = [u[0] * ca + t[0] * sa, u[1] * ca + t[1] * sa, u[2] * ca + t[2] * sa];
+      V2.push(p[0] + n[0] * r, p[1] + n[1] * r, p[2] + n[2] * r, n[0], n[1], n[2], cc[0], cc[1], cc[2], p[0] + n[0] * r + ax[0] * h, p[1] + n[1] * r + ax[1] * h, p[2] + n[2] * r + ax[2] * h, n[0], n[1], n[2], cc[0], cc[1], cc[2]);
     }
-    for (i = 0; i < N; i++){ var b = i * 2; idx.push(b, b + 1, b + 3, b, b + 3, b + 2); }
-    var c0 = v.length / 9; v.push(p[0], p[1], p[2], 0, 0, -1, cc[0] * .8, cc[1] * .8, cc[2] * .8);
-    for (i = 0; i <= N; i++){ a = i / N * Math.PI * 2; v.push(p[0] + Math.cos(a) * r, p[1] + Math.sin(a) * r, p[2], 0, 0, -1, cc[0] * .8, cc[1] * .8, cc[2] * .8); }
-    for (i = 0; i < N; i++) idx.push(c0, c0 + 1 + i, c0 + 2 + i);
+    for (i = 0; i < N; i++){ var b = base + i * 2; I2.push(b, b + 1, b + 3, b, b + 3, b + 2); }
+    [0, h].forEach(function(off, q){
+      if (!cap && q) return;
+      var nn = q ? ax : [-ax[0], -ax[1], -ax[2]], c0 = V2.length / 9, m = q ? 1 : 0.8;
+      V2.push(p[0] + ax[0] * off, p[1] + ax[1] * off, p[2] + ax[2] * off, nn[0], nn[1], nn[2], cc[0] * m, cc[1] * m, cc[2] * m);
+      for (var k = 0; k <= N; k++){ var a2 = k / N * Math.PI * 2, n2 = [u[0] * Math.cos(a2) + t[0] * Math.sin(a2), u[1] * Math.cos(a2) + t[1] * Math.sin(a2), u[2] * Math.cos(a2) + t[2] * Math.sin(a2)];
+        V2.push(p[0] + n2[0] * r + ax[0] * off, p[1] + n2[1] * r + ax[1] * off, p[2] + n2[2] * r + ax[2] * off, nn[0], nn[1], nn[2], cc[0] * m, cc[1] * m, cc[2] * m); }
+      for (k = 0; k < N; k++) I2.push(c0, c0 + 1 + k, c0 + 2 + k);
+    });
+  }
+  this.setTool = function(p, r, ax){
+    if (!p){ bTool.n = 0; dirty = true; return; }
+    var v = [], idx = [];
+    ax = ax || [0, 0, 1];
+    cylinder(v, idx, p, ax, r, Math.max(r * 4, span * 0.16), col.tool, true);
+    var hp = [p[0] + ax[0] * Math.max(r * 4, span * 0.16), p[1] + ax[1] * Math.max(r * 4, span * 0.16), p[2] + ax[2] * Math.max(r * 4, span * 0.16)];
+    cylinder(v, idx, hp, ax, Math.max(r * 1.6, span * 0.035), span * 0.07, col.rapid, true);
     upload(bTool, v, idx); dirty = true;
+  };
+  /* Widok maszyny: cała scena obrócona jak stół (detal → maszyna), narzędzie wtedy pionowo */
+  this.setMachine = function(R3){
+    ROT = R3 || null;
+    MO = R3 ? new Float32Array([R3[0], R3[3], R3[6], 0, R3[1], R3[4], R3[7], 0, R3[2], R3[5], R3[8], 0, 0, 0, 0, 1]) : I4;
+    if (R3 && st){
+      var v = [], idx = [], rr = span * 0.62, zt = st.bot - span * 0.01;
+      cylinder(v, idx, [0, 0, zt - span * 0.07], [0, 0, 1], rr, span * 0.07, col.future, true);
+      upload(bTable, v, idx);
+    } else bTable.n = 0;
+    dirty = true;
   };
 
   /* Kamera */
   var lastM = null, lastEye = null, lastW = 1, lastH = 1;
   function camState(w, h){
-    var d = span * 1.9 / cam.zoom, cp = Math.cos(cam.pitch), t = [tgt[0] + cam.pan[0], tgt[1] + cam.pan[1], tgt[2] + cam.pan[2]];
+    var tg = ROT ? m3v(ROT, tgt) : tgt, d = span * 1.9 / cam.zoom, cp = Math.cos(cam.pitch), t = [tg[0] + cam.pan[0], tg[1] + cam.pan[1], tg[2] + cam.pan[2]];
     var eye = [t[0] + d * cp * Math.cos(cam.yaw), t[1] + d * cp * Math.sin(cam.yaw), t[2] + d * Math.sin(cam.pitch)];
     return {d:d, t:t, eye:eye, M:m4mul(m4persp(0.62, w / h, d * 0.02, d * 8), m4look(eye, t, [0, 0, 1]))};
   }
@@ -213,6 +287,7 @@ function Sim3D(box, opts){
     gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(1.5, 2);
     drawBuf(bMesh, gl.TRIANGLES, false);
     gl.disable(gl.POLYGON_OFFSET_FILL);
+    drawBuf(bTable, gl.TRIANGLES, false);
     drawBuf(bTool, gl.TRIANGLES, false);
     drawBuf(bLines, gl.LINES, true);
     gl.disable(gl.DEPTH_TEST);
@@ -230,6 +305,11 @@ function Sim3D(box, opts){
     if (i < 0 || j < 0 || i >= st.nx || j >= st.ny) return null;
     return st.z[j * st.nx + i];
   }
+  function voxAt(x, y, z){
+    var i = Math.floor((x - st.x0) / st.c), j = Math.floor((y - st.y0) / st.c), k = Math.floor((z - st.z0) / st.c);
+    if (i < 0 || j < 0 || k < 0 || i >= st.nx || j >= st.ny || k >= st.nz) return false;
+    return st.v[k * st.nx * st.ny + j * st.nx + i] === 1;
+  }
   this.pick = function(clientX, clientY){
     if (!st || !lastM) return null;
     var r = cv.getBoundingClientRect(), nx = ((clientX - r.left) / r.width) * 2 - 1, ny = 1 - ((clientY - r.top) / r.height) * 2;
@@ -239,14 +319,15 @@ function Sim3D(box, opts){
     var th = Math.tan(0.31), asp = lastW / lastH;
     var dir = [f[0] + nx * th * asp * rt[0] + ny * th * up[0], f[1] + nx * th * asp * rt[1] + ny * th * up[1], f[2] + nx * th * asp * rt[2] + ny * th * up[2]];
     var dl = Math.hypot(dir[0], dir[1], dir[2]); dir = [dir[0] / dl, dir[1] / dl, dir[2] / dl];
+    if (ROT){ var Rt = m3t(ROT); e = m3v(Rt, e); dir = m3v(Rt, dir); }
     var step = st.cell * 0.5, far = lastM.d * 4, prevIn = false, hit = null;
-    function inside(s){ var x = e[0] + dir[0] * s, y = e[1] + dir[1] * s, z = e[2] + dir[2] * s, hz = hAt(x, y); return hz != null && z <= hz && z >= st.bot - 1e-6; }
+    function inside(s){ var x = e[0] + dir[0] * s, y = e[1] + dir[1] * s, z = e[2] + dir[2] * s; if (st.vox) return voxAt(x, y, z); var hz = hAt(x, y); return hz != null && z <= hz && z >= st.bot - 1e-6; }
     for (var s = 0; s < far; s += step){
       if (inside(s)){ var a = s - step, b = s; for (var q = 0; q < 24; q++){ var m = (a + b) / 2; if (inside(m)) b = m; else a = m; } hit = b; break; }
     }
     if (hit == null){ self.clearPick(); return null; }
-    var P = [e[0] + dir[0] * hit, e[1] + dir[1] * hit, e[2] + dir[2] * hit], hz = hAt(P[0], P[1]);
-    if (Math.abs(P[2] - hz) < st.cell * 1.5) P[2] = hz; // na górnej powierzchni: dokładne Z z mapy
+    var P = [e[0] + dir[0] * hit, e[1] + dir[1] * hit, e[2] + dir[2] * hit], hz = st.vox ? null : hAt(P[0], P[1]);
+    if (hz != null && Math.abs(P[2] - hz) < st.cell * 1.5) P[2] = hz; // na górnej powierzchni: dokładne Z z mapy
     var L = span * 0.06, cc = col.mark, B = {v:[], i:[]};
     line(B, [P[0] - L, P[1], P[2]], [P[0] + L, P[1], P[2]], cc); line(B, [P[0], P[1] - L, P[2]], [P[0], P[1] + L, P[2]], cc); line(B, [P[0], P[1], P[2]], [P[0], P[1], P[2] + L * 2], cc);
     upload(bMark, B.v, B.i); self.draw();

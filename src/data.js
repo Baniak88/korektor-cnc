@@ -29,7 +29,7 @@ var SAMPLES = {
     'G53.1 (USTAW OSIE A I C)',
     'G00 X0. Y0. S6000 M03',
     'G43 H5 Z50. M08',
-    'Z2.',
+    'Z5.',
     'G01 Z-5. F300',
     'G41 D5 X15. Y0. F800',
     'Y8.',

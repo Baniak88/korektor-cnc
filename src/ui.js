@@ -184,8 +184,8 @@ segClick('#ctlSeg', 'data-ctl', function(v){ S.ctlMap[S.machine] = v; store.set(
 
 function onControlChange(){
   if (typeof renderStart === 'function' && !$('#tab-start').hidden) renderStart();
-  $('#mpName').textContent = MACHINES[S.machine].name;
-  $('#mpCtl').textContent = ctlName(S.machine) + (multiAx() ? ' · ' + (MACHINES[S.machine].fiveAxis ? '5X' : '4/5X') : '');
+  $('#mpName').textContent = MACHINES[S.machine].short || MACHINES[S.machine].name;
+  $('#mpCtl').textContent = (ctl() === 'fanuc' ? 'Fanuc' : 'Sinumerik') + (multiAx() ? ' · ' + (MACHINES[S.machine].fiveAxis ? '5X' : '4/5X') : '');
   renderAxes();
   renderKorekcja();
   S.alarmCtl = ctl(); $('#a-title').textContent = 'Alarmy ' + (ctl() === 'fanuc' ? 'Fanuc' : 'Sinumerik') + ' · ' + MACHINES[S.machine].name + (MACHINE_ALARMS[S.machine] && MACHINE_ALARMS[S.machine].ctl === ctl() ? ' · z alarmami maszyny' : ''); renderAlarms();

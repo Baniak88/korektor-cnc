@@ -10,8 +10,8 @@ const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map(m =
 scripts.forEach((s, i) => { try { new vm.Script(s, { filename: 'script' + i + '.js' }); } catch (e) { console.error('Błąd składni w skrypcie ' + i); throw e; } });
 
 const core = html.match(/<script id="core">([\s\S]*?)<\/script>/)[1];
-const ctx = {}; vm.createContext(ctx); vm.runInContext(core + '\nthis.calcCorrection = calcCorrection; this.processProgram = processProgram; this.simulateProgram = simulateProgram; this.arcPoints = arcPoints; this.calcZero = calcZero; this.calcToolLen = calcToolLen; this.genProgram = genProgram; this.tapInfo = tapInfo; this.cutData = cutData; this.holePattern = holePattern; this.compPaths = compPaths; this.makeStock = makeStock; this.cutSegs = cutSegs;', ctx);
-const { calcCorrection, processProgram, simulateProgram, arcPoints, calcZero, calcToolLen, genProgram, tapInfo, cutData, holePattern, compPaths, makeStock, cutSegs } = ctx;
+const ctx = {}; vm.createContext(ctx); vm.runInContext(core + '\nthis.calcCorrection = calcCorrection; this.processProgram = processProgram; this.simulateProgram = simulateProgram; this.arcPoints = arcPoints; this.calcZero = calcZero; this.calcToolLen = calcToolLen; this.genProgram = genProgram; this.tapInfo = tapInfo; this.cutData = cutData; this.holePattern = holePattern; this.compPaths = compPaths; this.makeStock = makeStock; this.cutSegs = cutSegs; this.resetLocal = resetLocal; this.partTransform = partTransform; this.makeVox = makeVox; this.voxCutSegs = voxCutSegs; this.rotFromAxis = rotFromAxis;', ctx);
+const { calcCorrection, processProgram, simulateProgram, arcPoints, calcZero, calcToolLen, genProgram, tapInfo, cutData, holePattern, compPaths, makeStock, cutSegs, resetLocal, partTransform, makeVox, voxCutSegs, rotFromAxis } = ctx;
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, a + ' != ' + b);
 
 // Korekcja: otwór Ø20 H7 zmierzony 19.998 → celujemy w środek 20.0105 → ΔR −0.006
@@ -147,4 +147,19 @@ let k6 = simulateProgram('T3 M06 (WIERTLO D10)\nG0 X0 Y0 Z20\nG98 G81 X0 Y0 Z-10
 let st6 = makeStock(-10, -10, 10, 10, 0, -20, 40); cutSegs(st6, k6.segs, 0, k6.segs.length, 10);
 const h6 = (x, y) => st6.z[Math.round((y - st6.y0) / st6.cell) * st6.nx + Math.round((x - st6.x0) / st6.cell)];
 near(h6(0, 0), -10); assert.ok(h6(4, 0) > -8 && h6(4, 0) < -7); near(h6(7, 0), 0);
+
+// 5 osi: G68.2 J-30 — punkt (0,10,10) w pochylonym układzie to (0, 13.66, 3.66) w G54; oś narzędzia (0, 0.5, 0.866)
+let f5 = simulateProgram('T1 M06 (D6)\nG68.2 X0 Y0 Z0 I0 J-30. K0\nG53.1\nG00 X0 Y0 Z10.\nG01 Y10. F100\nG69', 'fanuc');
+resetLocal(f5.segs); compPaths(f5.segs, 6); assert.ok(partTransform(f5.segs, 'A'));
+let s5 = f5.segs.find(x => x.ln === 5); near(s5.b[1], 13.660254037844386); near(s5.b[2], 3.6602540378443855); near(s5.v[1], 0.5); near(s5.v[2], 0.8660254037844386);
+let rr5 = rotFromAxis(s5.v); near(rr5.A, -30); near(Math.abs(rr5.C), 180);
+// TCP: G43.4 + A-30 — pozycje bez zmian, oś narzędzia z kątów
+let t5 = simulateProgram('T1 M06 (D6)\nG00 X0 Y0 Z20. A0 C0\nG43.4 H1\nG00 A-30. C0\nG01 Z-1. F100\nX10.\nG49', 'fanuc');
+resetLocal(t5.segs); partTransform(t5.segs, 'A'); let st5 = t5.segs.find(x => x.ln === 6); near(st5.b[0], 10); near(st5.b[2], -1); near(st5.v[1], -0.5);
+// woksele: rowek frezem Ø6 na głębokość 2 wzdłuż X
+let vx5 = makeVox(-10, -10, -10, 30, 10, 0, 80);
+let g5 = simulateProgram('T1 M06 (D6)\nG0 X0 Y0 Z5\nG1 Z-2 F100\nX20', 'fanuc'); resetLocal(g5.segs); partTransform(g5.segs);
+assert.deepStrictEqual(JSON.parse(JSON.stringify(voxCutSegs(vx5, g5.segs, 0, g5.segs.length, 6))), []);
+const vxa = (x, y, z) => vx5.v[Math.floor((z - vx5.z0) / vx5.c) * vx5.nx * vx5.ny + Math.floor((y - vx5.y0) / vx5.c) * vx5.nx + Math.floor((x - vx5.x0) / vx5.c)];
+assert.strictEqual(vxa(10, 0, -1), 0); assert.strictEqual(vxa(10, 0, -3), 1); assert.strictEqual(vxa(10, 5, -1), 1);
 console.log('OK — ' + scripts.length + ' skryptów, testy logiki przeszły');
