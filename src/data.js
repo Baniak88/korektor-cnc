@@ -117,6 +117,8 @@ var ALARMS = {
     ['PS0076','PROGRAM NOT FOUND','Nie ma wywoływanego podprogramu.','Numer w M98 P / G65 P, czy podprogram jest w pamięci.'],
     ['OT0500','+ OVERTRAVEL (SOFT 1)','Oś przekroczyłaby krańcówkę programową w kierunku +.','Korekcję długości H, przesunięcie G54, wartość Z/X/Y w programie.'],
     ['OT0501','- OVERTRAVEL (SOFT 1)','Oś przekroczyłaby krańcówkę programową w kierunku −.','Jak wyżej. Po alarmie odjedź ręcznie w przeciwnym kierunku.'],
+    ['OT0510','+ OVERTRAVEL (PRE-CHECK)','Sprawdzenie przed ruchem: punkt końcowy bloku leży za krańcówką programową + . Oś nie ruszyła.','RESET (nie trzeba odjeżdżać). Policz cel: przesunięcie układu (G54…, G54.1 P…) + wartość w bloku + EXT/G52. Zły numer układu, zła wartość w układzie albo w programie.'],
+    ['OT0511','- OVERTRAVEL (PRE-CHECK)','Sprawdzenie przed ruchem: punkt końcowy bloku leży za krańcówką programową − . Oś nie ruszyła.','RESET (nie trzeba odjeżdżać). Policz cel: przesunięcie układu (G54…, G54.1 P…) + wartość w bloku + EXT/G52. Zły numer układu, zła wartość w układzie albo w programie.'],
     ['IE0001','+ OVERTRAVEL (SOFT 1)','Ruch przekroczyłby programową krańcówkę 1 w kierunku + (kontrola przed ruchem).','Wartość osi w programie, korekcję długości H i przesunięcie G54. Odjedź ręcznie w kierunku −.'],
     ['IE0002','- OVERTRAVEL (SOFT 1)','Ruch przekroczyłby programową krańcówkę 1 w kierunku − (kontrola przed ruchem).','Wartość osi w programie, korekcję długości H i przesunięcie G54. Odjedź ręcznie w kierunku +.'],
     ['IE0003','+ OVERTRAVEL (SOFT 2)','Ruch przekroczyłby programową krańcówkę 2 w kierunku + (strefa ustawiona parametrami lub G22).','Czy G22 / strefa zabroniona jest aktywna, pozycję w programie.'],

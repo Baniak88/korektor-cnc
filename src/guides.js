@@ -111,11 +111,12 @@ var GUIDES = {
   },
   limit: {
     title: 'Krańcówka — oś nie rusza', sub: 'Programowa albo fizyczna',
-    keys: 'krancowka overtravel limit os nie rusza ot0500 ot0501 10620 10720 21614 700001 700002 700003 soft hard',
+    keys: 'krancowka overtravel limit os nie rusza ot0500 ot0501 ot0510 ot0511 pre-check pre check 10620 10720 21614 700001 700002 700003 soft hard g54.1',
     steps: {
       fanuc: [
+        '<b>OT0510 / OT0511 (PRE-CHECK)</b>: sterowanie sprawdziło blok <b>przed</b> ruchem — oś nie ruszyła. Wystarczy <b>RESET</b>. Policz w kalkulatorze powyżej, dokąd blok chciał jechać, i popraw układ albo program.',
         '<b>Krańcówka programowa</b> (OT0500/OT0501, IE0001…): <b>RESET</b>, potem w <b>HANDLE</b>/<b>JOG</b> odjedź w <b>przeciwnym</b> kierunku.',
-        'Sprawdź, dlaczego oś tam jechała: wartość w programie, numer H, G54 Z, układ G54–G59.',
+        'Sprawdź, dlaczego oś tam jechała: który układ jest aktywny (na ekranie WORK u góry, np. (G54.1P007)), jego wartość, wartość w bloku programu, EXT, G52, numer H dla Z.',
         '<b>Krańcówka fizyczna</b> (OT0506/OT0507): jeśli maszyna ma przycisk zwolnienia krańcówki (np. O.T. RELEASE), przytrzymaj go i odjedź pokrętłem w przeciwnym kierunku, potem <b>RESET</b>.',
         'Po najechaniu na krańcówkę fizyczną albo kolizji — zgłoś utrzymaniu ruchu.'
       ],
@@ -553,4 +554,32 @@ GUIDES.tool.steps = function(c){
   base.splice(1, 0, pre);
   base.splice(4, 0, 'Do kalkulatora wpisz <b>' + R + ' Z</b> z tabeli układów (OFFSET/SETTING → [UKŁ.WSP] / [WORK] → ' + R + ', kolumna Z). Długość = Z maszynowe − ' + R + ' Z − płytka.');
   return base;
+};
+
+/* Krańcówka: kalkulator „dokąd chciał jechać blok” (przesunięcie układu + wartość w programie + EXT/G52) */
+var OTC = store.get('otc', {ax:'X', wo:'', prog:'', ext:'0', pos:''});
+GUIDES.limit.render = function(box){
+  function save(){ store.set('otc', OTC); }
+  function render(){
+    var h = '<span class="glab">Dokąd chciał jechać blok?</span><div class="calc">' +
+      '<div class="seg" id="ot-ax">' + ['X', 'Y', 'Z'].map(function(a){ return '<button type="button" data-v="' + a + '" aria-pressed="' + (OTC.ax === a) + '">Oś ' + a + '</button>'; }).join('') + '</div>' +
+      '<div class="fields">' + numField('ot-wo', 'Układ (G54… / G54.1 P…) ' + OTC.ax, OTC.wo, 'z ekranu WORK, aktywny układ') + numField('ot-prog', OTC.ax + ' w bloku programu', OTC.prog, 'blok z alarmu (N…)') +
+      numField('ot-ext', 'EXT / G52 ' + OTC.ax, OTC.ext, 'zwykle 0') + numField('ot-pos', OTC.ax + ' MASZYNA teraz', OTC.pos, 'opcjonalnie, z POS → ALL') + '</div>' +
+      '<div id="ot-out"></div></div>';
+    box.innerHTML = h; calc();
+  }
+  function calc(){
+    var wo = parseNum(OTC.wo), pg = parseNum(OTC.prog), ex = parseNum(OTC.ext) || 0, pos = parseNum(OTC.pos), out;
+    if (isFinite(wo) && isFinite(pg)){
+      var t = wo + pg + ex;
+      out = calcResult('Cel w ' + OTC.ax + ' MASZYNA', f4(t), 'Układ ' + f4(wo) + ' + program ' + f4(pg) + (ex ? ' + EXT/G52 ' + f4(ex) : '') + '. Jeśli to jest za końcem ruchu osi, sterowanie da OT05xx. ' +
+        (isFinite(pos) ? 'Teraz oś jest w ' + f4(pos) + ' — blok chciał jechać o ' + f4(t - pos) + ' (' + (t < pos ? 'w stronę −' : 'w stronę +') + ').' : '') +
+        ' Zakres ruchu: dojedź ręcznie do końca i odczytaj MASZYNA (krańcówki programowe są w parametrach, zwykle 1320/1321 na Fanuc — sprawdź w dokumentacji).');
+      if (OTC.ax !== 'Z' && Math.abs(t - pos) > 0 && isFinite(pos) && Math.abs(t - pos) > 600) out += '<p class="note-warn">Bardzo duży ruch — sprawdź, czy program jest dla tego układu (inny numer P / inna paleta).</p>';
+    } else out = '<p class="fine">Wpisz wartość układu dla osi z alarmu i wartość z bloku programu.</p>';
+    box.querySelector('#ot-out').innerHTML = out;
+  }
+  box.addEventListener('click', function(e){ var b = e.target.closest('#ot-ax [data-v]'); if (b){ OTC.ax = b.getAttribute('data-v'); save(); render(); } });
+  box.addEventListener('input', function(e){ var m = {'ot-wo':'wo', 'ot-prog':'prog', 'ot-ext':'ext', 'ot-pos':'pos'}[e.target.id]; if (m){ OTC[m] = e.target.value; save(); calc(); } });
+  render();
 };
