@@ -12,7 +12,7 @@ var MACHINES = {
     tips:['Maszyna 5-osiowa: oś A wychyla stół, oś C go obraca. Obróbka 3+2 (płaszczyzna pochylona) albo 5 osi naraz z TCP.','Płaszczyzna pochylona: G68.2 + G53.1, cofnięcie G69. TCP: G43.4, anulowanie G49.','Przy pochylonym narzędziu korekcja długości działa wzdłuż osi narzędzia, a nie wzdłuż Z stołu.','Na pochylonej płaszczyźnie X/Y korekcji i programu dotyczą tej płaszczyzny, nie stołu.','Przy kilku paletach sprawdź, który układ (G54… / G54.1 Pn) używa dana paleta.']
   },
   quaser: {
-    name:'Quaser MV184', short:'MV184', maxS:15000, def:'fanuc', fiveAxis:false, rot:['A','B','C'], type:'Pionowe centrum obróbcze',
+    name:'Quaser MV184', short:'MV184', maxS:15000, toolRef:'G59', def:'fanuc', fiveAxis:false, rot:['A','B','C'], type:'Pionowe centrum obróbcze',
     ctlNote:'Zwykle Fanuc (np. 31i-MB lub 0i, zależnie od rocznika). Spotykane też Heidenhain i Siemens.',
     specs:[['Przesuwy X/Y/Z','ok. 1020 / 610 / 610 mm'],['Wrzeciono','stożek 40, typowo 15 000 obr/min'],['Magazyn','np. 30 narzędzi (zależnie od wersji)']],
     tips:['Długie detale mierz po ostygnięciu. Stal rośnie ok. 0,012 mm na metr na każdy °C, aluminium ok. 0,023 mm.','Fanuc: klawisz [+WPROWADŹ] / [+INPUT] dodaje wpisaną wartość do obecnej korekcji.']

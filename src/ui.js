@@ -170,9 +170,13 @@ function renderSheet(){
   $('#wakeSw').checked = !!S.wake;
   $('#axSw').checked = multiAx();
   $('#maxSIn').value = MACHINES[S.machine].maxS || '';
+  setPressed('#refSeg', 'data-ref', toolRef());
   $('#axNote').textContent = 'Oś ' + MACHINES[S.machine].rot.join(', ') + ' w zakładce Program, uwagi 5-osiowe przy korekcji i dla AI.';
 }
 (function(){ var mm = store.get('maxSMap', {}); Object.keys(mm).forEach(function(id){ if (MACHINES[id] && mm[id] > 0) MACHINES[id].maxS = mm[id]; }); })();
+(function(){ var rm = store.get('toolRefMap', {}); Object.keys(rm).forEach(function(id){ if (MACHINES[id]) MACHINES[id].toolRef = rm[id]; }); })();
+function toolRef(id){ return MACHINES[id || S.machine].toolRef || 'G54'; }
+segClick('#refSeg', 'data-ref', function(v){ var rm = store.get('toolRefMap', {}); rm[S.machine] = v; store.set('toolRefMap', rm); MACHINES[S.machine].toolRef = v; toast('Pomiar długości w układzie ' + v); renderSheet(); });
 $('#maxSIn').addEventListener('change', function(){ var v = Math.round(parseNum(this.value)); if (v >= 1000 && v <= 60000){ var mm = store.get('maxSMap', {}); mm[S.machine] = v; store.set('maxSMap', mm); MACHINES[S.machine].maxS = v; toast('Maks. obroty: ' + v); if (typeof renderGen === 'function'){ GEN.ops.forEach(autoCut); renderOps(); renderGen(); } } else { this.value = MACHINES[S.machine].maxS || ''; toast('Wpisz obroty od 1000 do 60000'); } });
 $('#axSw').addEventListener('change', function(){ S.axMap[S.machine] = this.checked; store.set('axMap', S.axMap); onControlChange(); renderSheet(); });
 $('#mlist').addEventListener('click', function(e){

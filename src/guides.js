@@ -26,7 +26,7 @@ var GUIDES = {
   tool: {
     title: 'Ustaw długość narzędzia', sub: 'Dotknięcie płytki albo detalu — policzę długość', calc: 'tool',
     keys: 'dlugosc narzedzia h geometria dotkniecie plytka walek ustawiarka tool length touch off nowe narzedzie',
-    steps: {
+    stepsBase: {
       fanuc: [
         'W <b>MDI</b> wywołaj narzędzie: <b>T5 M06</b> (Twój numer).',
         'Zjedź pokrętłem nad płytkę wzorcową albo powierzchnię detalu. Przesuwaj płytkę pod narzędziem i opuszczaj krok 0.01, aż ledwo nie przejdzie.',
@@ -174,7 +174,7 @@ function openGuide(id){
   if (G.calc) html += '<div class="calc" id="calc"></div>';
   if (G.render) html += '<div class="group" id="calc"></div>';
   if (G.steps) html += '<div class="group"><span class="glab">Na sterowaniu ' + (c === 'fanuc' ? 'Fanuc' : 'Sinumerik') + '</span><ol class="gsteps">' +
-    G.steps[c].map(function(s){ return '<li>' + s + '</li>'; }).join('') + '</ol></div>';
+    (typeof G.steps === 'function' ? G.steps(c) : G.steps[c]).map(function(s){ return '<li>' + s + '</li>'; }).join('') + '</ol></div>';
   if (G.warn) html += '<ul class="notes">' + G.warn.map(function(w){ return '<li class="warn">' + esc(w) + '</li>'; }).join('') + '</ul>';
   var btns = '';
   if (G.go) btns += '<button type="button" class="btn primary wide" data-go="' + G.go + '">Policz korektę z pomiaru</button>';
@@ -273,10 +273,12 @@ function toolCalc(box){
   var c = ctl();
   function save(){ store.set('tc', TC); }
   function render(){
-    var h = '<div class="seg" id="tc-m"><button type="button" data-v="part" aria-pressed="' + (TC.m === 'part') + '">Dotykam detalu (znam G54 Z)</button><button type="button" data-v="zero" aria-pressed="' + (TC.m === 'zero') + '">Długość od G54 (G54 Z = 0)</button></div>';
+    var R = toolRef();
+    var h = '<p class="fine tcref">Pomiar w układzie <b>' + R + '</b> (ustawienie maszyny ' + esc(MACHINES[S.machine].short) + ' — zmienisz w „Maszyna i ustawienia”).</p>';
+    h += '<div class="seg" id="tc-m"><button type="button" data-v="part" aria-pressed="' + (TC.m === 'part') + '">Znam ' + R + ' Z (z tabeli)</button><button type="button" data-v="zero" aria-pressed="' + (TC.m === 'zero') + '">' + R + ' Z = 0</button></div>';
     h += '<div class="fields">' + numField('tc-p', 'Z maszynowe przy dotknięciu', TC.p, 'kolumna MASZYNA / MKS') +
       numField('tc-b', 'Płytka / wałeczek', TC.b, '0 gdy dotykasz bezpośrednio') +
-      (TC.m === 'part' ? numField('tc-base', 'G54 Z (z tabeli układów)', TC.base) : '') +
+      (TC.m === 'part' ? numField('tc-base', R + ' Z (z tabeli układów)', TC.base, 'OFFSET/SETTING → ' + R + ', kolumna Z') : '') +
       '<div class="field"><label class="lab" for="tc-tool">' + (c === 'fanuc' ? 'Numer H' : 'Narzędzie / D') + '</label><div class="num"><input id="tc-tool" class="txt" value="' + esc(TC.tool) + '" placeholder="' + (c === 'fanuc' ? 'np. H5' : 'np. T5 D1') + '" autocapitalize="characters"></div></div></div>';
     h += '<div id="tc-out"></div>';
     box.innerHTML = h; calc();
@@ -285,9 +287,9 @@ function toolCalc(box){
     var L = calcToolLen(TC), out;
     if (L != null){
       out = calcResult('Długość ' + (TC.tool ? esc(TC.tool) + ' ' : '') + '— wpisz w ' + (c === 'fanuc' ? 'GEOM (H)' : 'Długość'), f4(L),
-        (TC.m === 'part' ? 'Z maszynowe − G54 Z − płytka.' : 'Z maszynowe − płytka (metoda z G54 Z = 0 — długości są ujemne).') + ' Zużycie dla nowego narzędzia ustaw na 0.' +
-        (TC.m === 'part' && L <= 0 ? ' Uwaga: wynik ≤ 0 — sprawdź, czy G54 Z i pozycja są z tego samego układu.' : ''));
-    } else out = '<p class="fine">Wpisz Z maszynowe' + (TC.m === 'part' ? ' i G54 Z' : '') + ' — wynik pojawi się tutaj.</p>';
+        (TC.m === 'part' ? 'Z maszynowe − ' + toolRef() + ' Z − płytka.' : 'Z maszynowe − płytka (metoda z ' + toolRef() + ' Z = 0 — długości są ujemne).') + ' Zużycie dla nowego narzędzia ustaw na 0.' +
+        (TC.m === 'part' && L <= 0 ? ' Uwaga: wynik ≤ 0 — sprawdź, czy ' + toolRef() + ' Z i pozycja są z tego samego układu.' : ''));
+    } else out = '<p class="fine">Wpisz Z maszynowe' + (TC.m === 'part' ? ' i ' + toolRef() + ' Z' : '') + ' — wynik pojawi się tutaj.</p>';
     box.querySelector('#tc-out').innerHTML = out;
   }
   box.addEventListener('click', function(e){ var b = e.target.closest('button[data-v]'); if (b && b.parentNode.id === 'tc-m'){ TC.m = b.getAttribute('data-v'); save(); render(); } });
@@ -375,7 +377,7 @@ function zeroVizSvg(o){
     h += ln([58, 20, bz + 30], [58, 20, bz], 'zv-dimln') + mark([40, 20, bz + 30], 1, 30, -18) + (bz ? mark([49, 12, bz / 2], 2, 16, 0) : '') + mark([58, 20, bz + 15], 3, 12, 0) + mark([0, 0, 0], 4, -16, 8);
     leg.push([1, 'Z maszynowe przy dotknięciu', val(o.p)]);
     if (bz) leg.push([2, 'Płytka / wałeczek', val(o.b)]);
-    if (tool){ leg.push([3, 'Długość narzędzia — wpisz', '<b class="mono zv-ok">' + zvNum(o.res) + '</b>']); leg.push([4, 'G54 Z (z tabeli)', val(o.base)]); }
+    if (tool){ leg.push([3, 'Długość narzędzia — wpisz', '<b class="mono zv-ok">' + zvNum(o.res) + '</b>']); leg.push([4, toolRef() + ' Z (z tabeli)', val(o.base)]); }
     else { leg.push([3, 'Długość narzędzia (z tabeli)', val(o.L)]); leg.push([4, (o.wo || 'G54') + ' Z — wpisz', '<b class="mono zv-ok">' + zvNum(o.res) + '</b>']); }
   } else if (o.m === 'center'){
     var isX = ax === 'X', R = 15, cx = 40, cy = 20, boss = o.kind === 'boss';
@@ -463,7 +465,7 @@ function zvScene(o){
     lab.push({n:1, p:[cx, cy, bz + 38], dx:22}); if (bz) lab.push({n:2, p:[49, 16, bz / 2], dx:14}); lab.push({n:3, p:[cx, cy, bz + 13], dx:18}); lab.push({n:4, p:[0, 0, 0], dx:-14, dy:10});
     leg.push([1, 'Z maszynowe przy dotknięciu', val(o.p)]);
     if (bz) leg.push([2, 'Płytka / wałeczek', val(o.b)]);
-    if (tool){ leg.push([3, 'Długość narzędzia — wpisz', ok(o.res)]); leg.push([4, 'G54 Z (z tabeli)', val(o.base)]); }
+    if (tool){ leg.push([3, 'Długość narzędzia — wpisz', ok(o.res)]); leg.push([4, toolRef() + ' Z (z tabeli)', val(o.base)]); }
     else { leg.push([3, 'Długość narzędzia (z tabeli)', val(o.L)]); leg.push([4, (o.wo || 'G54') + ' Z — wpisz', ok(o.res)]); }
   } else if (o.m === 'center'){
     var isX = ax === 'X', R = 15, boss = o.kind === 'boss', zt = boss ? -6 : -6, off = boss ? R + r : R - r;
@@ -540,3 +542,15 @@ function zeroViz3(container, before, o){
     upd();
   };
 })();
+
+/* Długość narzędzia: kroki zależne od układu pomiaru maszyny (np. Quaser — G59) */
+GUIDES.tool.steps = function(c){
+  var R = toolRef(), base = GUIDES.tool.stepsBase[c].slice();
+  if (R === 'G54') return base;
+  var pre = c === 'fanuc'
+    ? 'Na tej maszynie długość mierzysz w układzie <b>' + R + '</b>. W <b>MDI</b> wpisz <b>G90 ' + R + '</b> i <b>CYCLE START</b> — sprawdź na ekranie pozycji, że aktywny jest ' + R + '.'
+    : 'Na tej maszynie długość mierzysz w przesunięciu <b>' + R + '</b>. W <b>MDA</b> wpisz <b>' + R + '</b> i <b>NC Start</b>.';
+  base.splice(1, 0, pre);
+  base.splice(4, 0, 'Do kalkulatora wpisz <b>' + R + ' Z</b> z tabeli układów (OFFSET/SETTING → [UKŁ.WSP] / [WORK] → ' + R + ', kolumna Z). Długość = Z maszynowe − ' + R + ' Z − płytka.');
+  return base;
+};
