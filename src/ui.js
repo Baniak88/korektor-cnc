@@ -52,8 +52,8 @@ var S = {
 if (!MACHINES[S.machine]) S.machine = 'chiron';
 if (!KINDS[S.kind]) S.kind = 'inner';
 function ctl(){ return S.ctlMap[S.machine] || MACHINES[S.machine].def; }
-function multiAx(id){ id = id || S.machine; return id in S.axMap ? !!S.axMap[id] : !!MACHINES[id].fiveAxis; }
-function axLabel(id){ id = id || S.machine; return multiAx(id) ? (MACHINES[id].fiveAxis ? '5 osi' : 'osie obrotowe') : ''; }
+function multiAx(id){ id = id || S.machine; return id in S.axMap ? !!S.axMap[id] : !!(MACHINES[id].fiveAxis || MACHINES[id].fourAxis); }
+function axLabel(id){ id = id || S.machine; return multiAx(id) ? (MACHINES[id].fiveAxis ? '5 osi' : MACHINES[id].rot.length === 1 ? '4. oś ' + MACHINES[id].rot[0] : 'osie obrotowe') : ''; }
 function sampleProg(){ return ctl() === 'fanuc' && S.machine === 'matsuura' && multiAx() ? SAMPLES.fanuc5 : SAMPLES[ctl()]; }
 
 function $(s){ return document.querySelector(s); }
@@ -189,7 +189,7 @@ segClick('#ctlSeg', 'data-ctl', function(v){ S.ctlMap[S.machine] = v; store.set(
 function onControlChange(){
   if (typeof renderStart === 'function' && !$('#tab-start').hidden) renderStart();
   $('#mpName').textContent = MACHINES[S.machine].short || MACHINES[S.machine].name;
-  $('#mpCtl').textContent = (ctl() === 'fanuc' ? 'Fanuc' : 'Sinumerik') + (multiAx() ? ' · ' + (MACHINES[S.machine].fiveAxis ? '5X' : '4/5X') : '');
+  $('#mpCtl').textContent = (ctl() === 'fanuc' ? 'Fanuc' : 'Sinumerik') + (multiAx() ? ' · ' + (MACHINES[S.machine].fiveAxis ? '5X' : MACHINES[S.machine].rot.length === 1 ? '4X' : '4/5X') : '');
   renderAxes();
   renderKorekcja();
   S.alarmCtl = ctl(); $('#a-title').textContent = 'Alarmy ' + (ctl() === 'fanuc' ? 'Fanuc' : 'Sinumerik') + ' · ' + MACHINES[S.machine].name + (MACHINE_ALARMS[S.machine] && MACHINE_ALARMS[S.machine].ctl === ctl() ? ' · z alarmami maszyny' : ''); renderAlarms();
