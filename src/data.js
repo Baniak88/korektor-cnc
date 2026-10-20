@@ -128,7 +128,8 @@ var ALARMS = {
     ['DS5340','PARAMETER CHECK SUM ERROR','Suma kontrolna parametrów się nie zgadza — parametry maszyny zostały zmienione.','Nie kasuj na ślepo. Zgłoś utrzymaniu ruchu, czy zmiana parametrów była zamierzona.'],
     ['DS5550','AXIS IMMEDIATE STOP','Natychmiastowe zatrzymanie osi.','Komunikaty obok alarmu, kolizję, sygnały bezpieczeństwa. Zgłoś utrzymaniu ruchu.'],
     ['SV0410','EXCESS ERROR (STOP)','Za duży błąd położenia osi w spoczynku.','Hamulec osi, kolizję, napęd. Zgłoś utrzymaniu ruchu.'],
-    ['SV0411','EXCESS ERROR (MOVING)','Za duży błąd położenia w ruchu.','Kolizję, zablokowaną oś, zbyt duży posuw. Zgłoś utrzymaniu ruchu.']
+    ['SV0411','EXCESS ERROR (MOVING)','Za duży błąd położenia w ruchu.','Kolizję, zablokowaną oś, zbyt duży posuw. Zgłoś utrzymaniu ruchu.'],
+    ['SP9082','(S)NO 1-ROT MOTOR SENSOR','Sterowanie nie dostaje sygnału „jeden obrót” z czujnika silnika wrzeciona (na wzmacniaczu wrzeciona kod 82). Bez niego nie działa orientacja wrzeciona M19, więc alarm wyskakuje zwykle przy wymianie narzędzia (makro M6).','Nie puszczaj programu po samym RESET — przy nieudanej orientacji ramię zmieniacza może uderzyć w oprawkę. Najpierw sprawdź, czy ramię zmieniacza jest w pozycji spoczynkowej. RESET, ewentualnie raz wyłącz i włącz maszynę, potem test w MDI: M3 S200, M5, M19. Jeśli alarm wraca — zatrzymaj maszynę i zgłoś utrzymaniu ruchu (konektor i przewód czujnika na silniku i na wzmacniaczu, chłodziwo w złączu, szczelina i czystość czujnika, sam czujnik albo wzmacniacz). Zapisz godzinę i przy którym narzędziu wystąpił.']
   ],
   sinumerik: [
     ['3000','Emergency stop','Aktywny wyłącznik awaryjny.','Grzybek, drzwi, łańcuch bezpieczeństwa. Zwolnij i skasuj.'],

@@ -173,6 +173,7 @@ assert.deepStrictEqual(JSON.parse(JSON.stringify(splitFit('Ø20 H7'))), { nom: '
 // Numer alarmu: „41”, „0041”, „ps41” trafiają w PS0041; „612” zaczyna 61xxx
 assert.strictEqual(alarmNumScore('PS0041', '41'), 0); assert.strictEqual(alarmNumScore('PS0041', 'ps 0041'), 0);
 assert.strictEqual(alarmNumScore('SV0410', '41'), 1); assert.strictEqual(alarmNumScore('PS0041', 'SV41'), -1);
+assert.strictEqual(alarmNumScore('SP9082', '9082'), 0); assert.strictEqual(alarmNumScore('SP9082', 'sp 9082'), 0); assert.strictEqual(alarmNumScore('SP9082', 'SV9082'), -1);
 assert.strictEqual(alarmNumScore('61xxx', '61234'), 0); assert.strictEqual(alarmNumScore('61xxx', '612'), 1); assert.strictEqual(alarmNumScore('10720', '107'), 1);
 
 // Kontrola przed wgraniem: krańcówka X+, posuw, frez równy promieniowi łuku, przejazd w powietrzu
