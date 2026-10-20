@@ -182,6 +182,7 @@ var CODES = [
 
 /* Słowniczek: [id, pojęcie, wyjaśnienie] */
 var GLOSSARY = [
+  ['pasowanie','Pasowanie (H7, h6, g6…)','Skrót tolerancji z rysunku wg ISO 286. Litera mówi, gdzie leży pole tolerancji: duża litera = otwór (H7, G7, K7), mała = wałek / czop (h6, g6, k6). Liczba to klasa dokładności — im mniejsza, tym węższa tolerancja. Przykład: Ø20 H7 = od 20,000 do 20,021. Aplikacja liczy odchyłki dla wymiarów do 500 mm. Gdy rysunek podaje odchyłki liczbami, wpisz je ręcznie — mają pierwszeństwo.'],
   ['poz-masz','Pozycja maszynowa (MASZYNA / MKS)','Położenie osi liczone od zera maszyny, a nie od detalu. Nie zmienia się po zmianie G54. Fanuc: POS → [WSZYSTKO] / [ALL], kolumna MASZYNA (MACHINE). Sinumerik: w oknie pozycji przełącz na MKS. Tę liczbę wpisujesz do kalkulatora punktu zerowego, a wynik do tabeli G54.'],
   ['zuzycie','Zużycie (Wear, ΔR, ΔL)','Mała poprawka do wymiaru narzędzia. Tu wpisujesz korekty z pomiaru detalu. Sterowanie liczy: geometria + zużycie. Ujemne zużycie promienia = frez „chudszy”, zbiera więcej materiału. Ujemne zużycie długości = narzędzie „krótsze”, schodzi niżej.'],
   ['geometria','Geometria narzędzia','Zmierzony wymiar narzędzia: długość (z pomiaru na maszynie lub urządzeniu nastawczym) i promień. Przy korektach z pomiaru detalu zwykle jej nie zmieniasz — od tego jest zużycie.'],

@@ -10,8 +10,8 @@ const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map(m =
 scripts.forEach((s, i) => { try { new vm.Script(s, { filename: 'script' + i + '.js' }); } catch (e) { console.error('Błąd składni w skrypcie ' + i); throw e; } });
 
 const core = html.match(/<script id="core">([\s\S]*?)<\/script>/)[1];
-const ctx = {}; vm.createContext(ctx); vm.runInContext(core + '\nthis.calcCorrection = calcCorrection; this.processProgram = processProgram; this.simulateProgram = simulateProgram; this.arcPoints = arcPoints; this.calcZero = calcZero; this.calcToolLen = calcToolLen; this.genProgram = genProgram; this.tapInfo = tapInfo; this.cutData = cutData; this.holePattern = holePattern; this.compPaths = compPaths; this.makeStock = makeStock; this.cutSegs = cutSegs; this.resetLocal = resetLocal; this.partTransform = partTransform; this.makeVox = makeVox; this.voxCutSegs = voxCutSegs; this.rotFromAxis = rotFromAxis;', ctx);
-const { calcCorrection, processProgram, simulateProgram, arcPoints, calcZero, calcToolLen, genProgram, tapInfo, cutData, holePattern, compPaths, makeStock, cutSegs, resetLocal, partTransform, makeVox, voxCutSegs, rotFromAxis } = ctx;
+const ctx = {}; vm.createContext(ctx); vm.runInContext(core + '\nthis.calcCorrection = calcCorrection; this.processProgram = processProgram; this.simulateProgram = simulateProgram; this.arcPoints = arcPoints; this.calcZero = calcZero; this.calcToolLen = calcToolLen; this.genProgram = genProgram; this.tapInfo = tapInfo; this.cutData = cutData; this.holePattern = holePattern; this.compPaths = compPaths; this.makeStock = makeStock; this.cutSegs = cutSegs; this.resetLocal = resetLocal; this.partTransform = partTransform; this.makeVox = makeVox; this.voxCutSegs = voxCutSegs; this.rotFromAxis = rotFromAxis; this.isoFit = isoFit; this.splitFit = splitFit; this.alarmNumScore = alarmNumScore; this.preflight = preflight;', ctx);
+const { calcCorrection, processProgram, simulateProgram, arcPoints, calcZero, calcToolLen, genProgram, tapInfo, cutData, holePattern, compPaths, makeStock, cutSegs, resetLocal, partTransform, makeVox, voxCutSegs, rotFromAxis, isoFit, splitFit, alarmNumScore, preflight } = ctx;
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, a + ' != ' + b);
 
 // Korekcja: otwór Ø20 H7 zmierzony 19.998 → celujemy w środek 20.0105 → ΔR −0.006
@@ -162,4 +162,28 @@ let g5 = simulateProgram('T1 M06 (D6)\nG0 X0 Y0 Z5\nG1 Z-2 F100\nX20', 'fanuc');
 assert.deepStrictEqual(JSON.parse(JSON.stringify(voxCutSegs(vx5, g5.segs, 0, g5.segs.length, 6))), []);
 const vxa = (x, y, z) => vx5.v[Math.floor((z - vx5.z0) / vx5.c) * vx5.nx * vx5.ny + Math.floor((y - vx5.y0) / vx5.c) * vx5.nx + Math.floor((x - vx5.x0) / vx5.c)];
 assert.strictEqual(vxa(10, 0, -1), 0); assert.strictEqual(vxa(10, 0, -3), 1); assert.strictEqual(vxa(10, 5, -1), 1);
+
+// Pasowania ISO 286: odchyłki w mm
+[[20, 'H7', 0.021, 0], [20, 'g6', -0.007, -0.020], [50, 'h6', 0, -0.016], [25, 'k6', 0.015, 0.002], [40, 'p6', 0.042, 0.026], [100, 'f7', -0.036, -0.071],
+ [25, 'N7', -0.007, -0.028], [12, 'M7', 0, -0.018], [10, 'H7', 0.015, 0], [25, 'K8', 0.010, -0.023], [20, 'K7', 0.006, -0.015], [16, 'G7', 0.024, 0.006], [8, 'e8', -0.025, -0.047]]
+  .forEach(([d, f, up, lo]) => { const q = isoFit(d, f); near(q.up, up); near(q.lo, lo); });
+near(isoFit(30, 'js6').up, 0.0065); assert.ok(isoFit(300, 'M7').err && isoFit(20, 'X7').err);
+assert.deepStrictEqual(JSON.parse(JSON.stringify(splitFit('Ø20 H7'))), { nom: '20', fit: 'H7' });
+
+// Numer alarmu: „41”, „0041”, „ps41” trafiają w PS0041; „612” zaczyna 61xxx
+assert.strictEqual(alarmNumScore('PS0041', '41'), 0); assert.strictEqual(alarmNumScore('PS0041', 'ps 0041'), 0);
+assert.strictEqual(alarmNumScore('SV0410', '41'), 1); assert.strictEqual(alarmNumScore('PS0041', 'SV41'), -1);
+assert.strictEqual(alarmNumScore('61xxx', '61234'), 0); assert.strictEqual(alarmNumScore('61xxx', '612'), 1); assert.strictEqual(alarmNumScore('10720', '107'), 1);
+
+// Kontrola przed wgraniem: krańcówka X+, posuw, frez równy promieniowi łuku, przejazd w powietrzu
+const pfLim = { x: [-630, 0], y: [-560, 0], z: [-510, 0] };
+let pf = preflight('G90 G54\nT1 M6 (FREZ D12)\nG0 X0 Y0 S3000 M3\nG43 H1 Z5\nG1 Z-2\nG1 X100 F500\nG1 Z20\nG1 X0 Y0\nM30', 'fanuc', { lim: pfLim, wo: { x: -50, y: -100, z: -480 }, L: 100, limOk: true });
+const pfi = k => pf.items.find(i => i.k === k);
+assert.strictEqual(pfi('limit').sev, 'bad'); assert.deepStrictEqual(Array.from(pfi('limit').lines), [6]);
+assert.strictEqual(pfi('feed').sev, 'bad'); assert.strictEqual(pfi('air').sev, 'warn');
+pf = preflight('T5 M06 (FREZ D10)\nG0 X15 Y0 Z2\nG1 Z-5 F300\nG41 D5 X15 Y8 F800\nG03 X10 Y13 R5\nG01 X-10\nG40 G0 Z50', 'fanuc', { lim: pfLim });
+assert.strictEqual(pfi('radius').sev, 'warn'); assert.strictEqual(pfi('limit').sev, 'na');
+pf = preflight('T5 M06 (FREZ D12)\nG0 X15 Y0 Z2\nG1 Z-5 F300\nG41 D5 X15 Y8 F800\nG03 X10 Y13 R5\nG40 G0 Z50', 'fanuc', {});
+assert.strictEqual(pfi('radius').sev, 'bad');
+
 console.log('OK — ' + scripts.length + ' skryptów, testy logiki przeszły');

@@ -1,18 +1,18 @@
 var MACHINES = {
   chiron: {
-    name:'Chiron FZ12', short:'FZ12', maxS:15000, def:'sinumerik', fiveAxis:true, rot:['A','C'], type:'Centrum 5-osiowe ze stołem uchylno-obrotowym (A + C)',
+    name:'Chiron FZ12', short:'FZ12', maxS:15000, trav:[550, 400, 425], def:'sinumerik', fiveAxis:true, rot:['A','C'], type:'Centrum 5-osiowe ze stołem uchylno-obrotowym (A + C)',
     ctlNote:'Najczęściej Siemens Sinumerik 840D. Spotykane też wersje z Fanuc.',
     specs:[['Przesuwy X/Y/Z','ok. 500–550 / 300–400 / 280–550 mm (zależnie od wersji)'],['Wrzeciono','HSK50, SK40 lub ISO30; do ok. 15 000 obr/min'],['Magazyn','koszykowy, 20–64 miejsc'],['Osie obrotowe','A — kołyska uchylana wokół osi X, C — stół obrotowy na kołysce (tabliczka na maszynie)'],['Wersje','m.in. W, KW (dwie palety), KS i FX (5 osi)']],
     tips:['Maszyna 5-osiowa: A uchyla kołyskę ze stołem (obrót wokół X), C obraca stół. Płaszczyzna pochylona: CYCLE800, TCP: TRAORI.','Kierunki plus osi A i C sprawdzaj na tabliczce nad pulpitem — znak + przy strzałce obrotu.','Sinumerik: korekcja długości i promienia włącza się z T i D. D0 wyłącza korekcję.','Przy zarządzaniu narzędziami narzędzie bywa wywoływane nazwą: T="NAZWA" M6.','Zużycie (ΔL, ΔR) wpisujesz dla konkretnego ostrza D danego narzędzia.']
   },
   matsuura: {
-    name:'Matsuura MX-520', short:'MX-520', maxS:12000, def:'fanuc', fiveAxis:true, rot:['A','C'], type:'Centrum 5-osiowe ze stołem uchylno-obrotowym (wersje z paletami PC4)',
+    name:'Matsuura MX-520', short:'MX-520', maxS:12000, trav:[630, 560, 510], def:'fanuc', fiveAxis:true, rot:['A','C'], type:'Centrum 5-osiowe ze stołem uchylno-obrotowym (wersje z paletami PC4)',
     ctlNote:'Matsuura G-Tech 31i (oparte na Fanuc 31i).',
     specs:[['Przesuwy X/Y/Z','630 / 560 / 510 mm'],['Osie obrotowe','A od −125° do +10° (uchył stołu wokół X), C 360° (obrót stołu)'],['Stół','Ø300 mm (opcja Ø500 mm)'],['Detal maks.','Ø520 × 350 mm, 150 kg'],['Wrzeciono','BT40, 12 000 obr/min (opcja 20 000)'],['Magazyn','60 albo 90 narzędzi, zmiana 1,1 s'],['Narzędzie maks.','Ø80 mm (Ø150 bez sąsiednich), 10 kg']],
     tips:['Maszyna 5-osiowa: oś A wychyla stół, oś C go obraca. Obróbka 3+2 (płaszczyzna pochylona) albo 5 osi naraz z TCP.','Płaszczyzna pochylona: G68.2 + G53.1, cofnięcie G69. TCP: G43.4, anulowanie G49.','Przy pochylonym narzędziu korekcja długości działa wzdłuż osi narzędzia, a nie wzdłuż Z stołu.','Na pochylonej płaszczyźnie X/Y korekcji i programu dotyczą tej płaszczyzny, nie stołu.','Przy kilku paletach sprawdź, który układ (G54… / G54.1 Pn) używa dana paleta.']
   },
   quaser: {
-    name:'Quaser MV184', short:'MV184', maxS:15000, toolRef:'G59', def:'fanuc', fiveAxis:false, fourAxis:true, rot:['A'], type:'Pionowe centrum obróbcze z 4. osią A',
+    name:'Quaser MV184', short:'MV184', maxS:15000, trav:[1020, 610, 610], toolRef:'G59', def:'fanuc', fiveAxis:false, fourAxis:true, rot:['A'], type:'Pionowe centrum obróbcze z 4. osią A',
     ctlNote:'Zwykle Fanuc (np. 31i-MB lub 0i, zależnie od rocznika). Spotykane też Heidenhain i Siemens.',
     specs:[['Przesuwy X/Y/Z','ok. 1020 / 610 / 610 mm'],['4. oś','A — podzielnica obracająca wokół osi X, tarcza po prawej stronie stołu (tabliczka na maszynie)'],['Wrzeciono','stożek 40, typowo 15 000 obr/min'],['Magazyn','np. 30 narzędzi (zależnie od wersji)']],
     tips:['Tabliczka osi na maszynie pokazuje ruch stołu. Stół jedzie w lewo = narzędzie jedzie po detalu w prawo (X+). Stół do operatora = narzędzie do tyłu (Y+). Program i aplikacja zawsze opisują ruch narzędzia względem detalu.','4. oś A: Y i Z detalu na podzielnicy zależą od kąta A — punkt zerowy ustawiaj przy tym A, przy którym pracuje program (np. G54.1 P… A0).','Długie detale mierz po ostygnięciu. Stal rośnie ok. 0,012 mm na metr na każdy °C, aluminium ok. 0,023 mm.','Fanuc: klawisz [+WPROWADŹ] / [+INPUT] dodaje wpisaną wartość do obecnej korekcji.']

@@ -37,6 +37,7 @@
     </div>
     <input type="search" class="search" id="st-q" placeholder="Szukaj: alarm, kod, G54, długość…" autocomplete="off" aria-label="Szukaj przewodnika, alarmu albo kodu">
     <ul class="list" id="st-res" hidden></ul>
+    <div class="group" id="st-ralarm" hidden></div>
     <div class="group" id="st-tasks"></div>
     <div class="group" id="st-recent" hidden>
       <span class="lab">Ostatnie korekty</span>
@@ -63,6 +64,8 @@
     <button type="button" class="btn ghost" id="tipClose">OK</button>
   </div>
 
+  <div class="group" id="k-quick" hidden></div>
+
   <div class="group">
     <div class="step"><span class="no">1</span><h3>Co mierzysz?</h3></div>
     <div class="kinds" role="radiogroup" aria-label="Co mierzysz" id="kinds"></div>
@@ -82,6 +85,14 @@
       <div class="field full">
         <div class="lrow"><label class="lab" for="k-nom">Nominał</label><button type="button" class="q" data-term="nominal" aria-label="Co to jest nominał?">?</button></div>
         <div class="num big"><input id="k-nom" inputmode="decimal" autocomplete="off" enterkeyhint="next" placeholder="np. 20"></div>
+      </div>
+      <div class="field full" id="fitWrap">
+        <div class="lrow"><label class="lab" for="k-fit">Pasowanie <span class="hint">· wpisze odchyłki za Ciebie</span></label><button type="button" class="q" data-term="pasowanie" aria-label="Co to jest pasowanie?">?</button></div>
+        <div class="fitrow">
+          <div class="num fitin"><input id="k-fit" class="txt" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="5" enterkeyhint="next" placeholder="np. H7"></div>
+          <div class="cats" id="k-fitchips" role="group" aria-label="Częste pasowania"></div>
+        </div>
+        <span class="hint" id="k-fitmsg"></span>
       </div>
       <div class="field">
         <div class="lrow"><label class="lab" for="k-up">Odchyłka górna</label><button type="button" class="q" data-term="odchylki" aria-label="Co to są odchyłki?">?</button></div>
@@ -175,6 +186,36 @@
     </div>
   </div>
 
+  <div class="pf" id="pf" aria-labelledby="pf-h">
+    <div class="pf-head">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 4v5c0 4.4-3.4 8-8 9-4.6-1-8-4.6-8-9V7z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg>
+      <h3 id="pf-h">Kontrola przed wgraniem</h3>
+      <span class="pf-which" id="pf-which"></span>
+    </div>
+    <div class="pf-sum" id="pf-sum" aria-live="polite"></div>
+    <ul class="pf-list" id="pf-list"></ul>
+    <details class="more pf-set" id="pf-set">
+      <summary>Dane maszyny i G54</summary>
+      <div class="group" style="padding-top:8px">
+        <span class="lab">Punkt zerowy G54 — pozycje MASZYNA (MKS)</span>
+        <div class="fields f3">
+          <div class="field"><label class="lab" for="pf-wx">X</label><div class="num"><input id="pf-wx" inputmode="decimal" autocomplete="off"><button type="button" class="pm" data-for="pf-wx" aria-label="Zmień znak">±</button></div></div>
+          <div class="field"><label class="lab" for="pf-wy">Y</label><div class="num"><input id="pf-wy" inputmode="decimal" autocomplete="off"><button type="button" class="pm" data-for="pf-wy" aria-label="Zmień znak">±</button></div></div>
+          <div class="field"><label class="lab" for="pf-wz">Z</label><div class="num"><input id="pf-wz" inputmode="decimal" autocomplete="off"><button type="button" class="pm" data-for="pf-wz" aria-label="Zmień znak">±</button></div></div>
+        </div>
+        <div class="fields f3">
+          <div class="field"><label class="lab" for="pf-L">Narzędzie H/L</label><div class="num"><input id="pf-L" inputmode="decimal" autocomplete="off" placeholder="max"></div></div>
+          <div class="field"><label class="lab" for="pf-d">Ø freza</label><div class="num"><input id="pf-d" inputmode="decimal" autocomplete="off" placeholder="gdy brak"></div></div>
+          <div class="field"><label class="lab" for="pf-top">Góra Z</label><div class="num"><input id="pf-top" inputmode="decimal" autocomplete="off" placeholder="0"><button type="button" class="pm" data-for="pf-top" aria-label="Zmień znak">±</button></div></div>
+        </div>
+        <p class="fine">Narzędzie H/L: długość najdłuższego narzędzia w programie, tak jak stoi w tabeli korekcji. Góra Z: górna powierzchnia materiału w układzie programu. Ø freza biorę z komentarza przy narzędziu, np. (FREZ D10) — to pole jest na wypadek, gdy go nie ma.</p>
+        <span class="lab">Zakres osi maszyny — pozycje MASZYNA przy krańcówkach programowych</span>
+        <div class="limtab" id="pf-lim"></div>
+        <label class="check"><input type="checkbox" id="pf-limok"><span>Zakresy sprawdzone na tej maszynie<small id="pf-limnote"></small></span></label>
+      </div>
+    </details>
+  </div>
+
   <div class="stepgroup">
     <div class="step"><span class="no">2</span><h3>Co zmienić?</h3></div>
     <div class="optiles" role="radiogroup" aria-label="Operacja" id="g-ops">
@@ -191,6 +232,7 @@
       <div class="field" data-for="widen">
         <div class="lrow"><label class="lab" for="g-center">Środek wymiaru</label><button type="button" class="q" data-term="srodek-wym" aria-label="Co to jest środek wymiaru?">?</button></div>
         <div class="num"><input id="g-center" inputmode="decimal" autocomplete="off" value="0"><button type="button" class="pm" data-for="g-center" aria-label="Zmień znak">±</button></div>
+        <button type="button" class="tlink" id="g-autoc">Weź środek z programu</button>
       </div>
       <div class="field" data-for="widen">
         <div class="lrow"><label class="lab" for="g-wdelta">O ile zmienić wymiar</label></div>
@@ -247,11 +289,11 @@
   </div>
   <div class="sec-h">
     <h2 id="h-nw">Nowy program</h2>
-    <p class="lead">Z rysunku albo z wymiarów. Program składam z gotowych operacji: planowanie, kieszeń, kontur, otwory i gwinty.</p>
+    <p class="lead">Zdjęcie rysunku zamienię w model detalu. Na modelu dotknij tego, co chcesz obrobić, albo dorysuj palcem kieszeń czy otwór — narzędzia, obroty i program dobiorę sam.</p>
   </div>
 
   <div class="group">
-    <div class="step"><span class="no">1</span><h3>Rysunek</h3><span class="opt">AI odczyta wymiary</span></div>
+    <div class="step"><span class="no">1</span><h3>Rysunek albo zdjęcie</h3><span class="opt">AI zbuduje z niego model · albo pomiń i rysuj od razu w kroku 2</span></div>
     <div class="row">
       <span class="btn filebtn big-btn"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Zdjęcie<input type="file" id="n-cam" accept="image/*" capture="environment" aria-label="Zrób zdjęcie rysunku"></span>
       <span class="btn filebtn big-btn"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></svg>Galeria / PDF<input type="file" id="n-file" accept="image/*,application/pdf" multiple aria-label="Wybierz zdjęcie albo PDF rysunku"></span>
@@ -267,25 +309,49 @@
     <p class="fine">Model 3D z SolidWorks albo Fusion: zapisz rysunek jako PDF albo zrób zrzut ekranu z wymiarami — telefon nie otworzy plików CAD.</p>
   </div>
 
-  <div class="stepgroup">
-    <div class="step"><span class="no">2</span><h3>Detal i baza</h3></div>
-    <div class="fields" id="n-head"></div>
+  <div class="stepgroup" id="n-mstep">
+    <div class="step"><span class="no">2</span><h3>Model — zaznacz, co obrabiać</h3><span id="n-mex"></span></div>
+    <div class="mstock">
+      <div class="field"><label class="lab" for="n-sx">Detal X</label><div class="num"><input id="n-sx" data-st="sx" inputmode="decimal" autocomplete="off"></div></div>
+      <div class="field"><label class="lab" for="n-sy">Y</label><div class="num"><input id="n-sy" data-st="sy" inputmode="decimal" autocomplete="off"></div></div>
+      <div class="field"><label class="lab" for="n-sz">Grubość</label><div class="num"><input id="n-sz" data-st="sz" inputmode="decimal" autocomplete="off"></div></div>
+      <div class="field"><label class="lab" for="n-mmat">Materiał</label><select id="n-mmat" class="sel"></select></div>
+    </div>
+    <div class="mtools" role="toolbar" aria-label="Narzędzia modelu" id="n-tools">
+      <button type="button" class="mtool" data-tool="sel" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3l12 9-5.5 1L15 20l-2.5 1-2.5-7L6 18z"/></svg><span>Wskaż</span></button>
+      <button type="button" class="mtool" data-tool="pocket" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1"/><rect x="7.5" y="9" width="9" height="6" rx="1.5"/></svg><span>Kieszeń</span></button>
+      <button type="button" class="mtool" data-tool="pocketc" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1"/><circle cx="12" cy="12" r="4"/></svg><span>Okrągła</span></button>
+      <button type="button" class="mtool" data-tool="boss" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1" stroke-dasharray="2.5 2"/><rect x="7" y="8" width="10" height="8" rx="1.5"/></svg><span>Kontur</span></button>
+      <button type="button" class="mtool" data-tool="hole" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M12 4v3M12 17v3M4 12h3M17 12h3"/></svg><span>Otwór</span></button>
+      <button type="button" class="mtool" data-tool="tap" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.5" stroke-dasharray="2 2"/><circle cx="12" cy="12" r="4"/></svg><span>Gwint</span></button>
+    </div>
+    <div class="mcanvas">
+      <div class="mdro" id="n-dro" aria-live="polite"></div>
+      <svg id="n-svg" viewBox="0 0 340 220" role="img" aria-label="Model detalu — widok z góry"></svg>
+    </div>
+    <div class="mopts">
+      <label class="check" id="n-underw" hidden><input type="checkbox" id="n-under"><span>Zdjęcie pod modelem<small>rozciągnięte na obrys detalu — do odrysowania</small></span></label>
+    </div>
+    <div id="n-insp"></div>
+    <div class="ghead"><span class="lab">Elementy modelu</span><span class="count" id="n-fcount"></span></div>
+    <ul class="list mfeat" id="n-flist"></ul>
   </div>
 
   <div class="stepgroup">
-    <div class="step"><span class="no">3</span><h3>Operacje</h3><span class="count push" id="n-opcount"></span></div>
-    <div id="n-ops" class="group"></div>
-    <span class="lab">Dodaj operację</span>
+    <div class="step"><span class="no">3</span><h3>Program</h3><span class="count push" id="n-meta"></span></div>
+    <div id="n-opsum"></div>
+    <div id="n-manual" class="group" hidden>
+      <div class="ghead"><span class="lab">Operacje</span><span class="count" id="n-opcount"></span></div>
+      <div id="n-ops" class="group"></div>
+      <span class="lab">Dodaj operację</span>
     <div class="addops" id="n-add">
       <button type="button" class="ktile" data-add="face"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 22h24"/><path d="M8 18h16"/><rect x="10" y="6" width="12" height="8" rx="2"/></svg><span>Planowanie</span></button>
       <button type="button" class="ktile" data-add="pocket"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="6" width="24" height="20" rx="3"/><rect x="10" y="11" width="12" height="10" rx="2"/></svg><span>Kieszeń</span></button>
       <button type="button" class="ktile" data-add="boss"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="9" y="9" width="14" height="14" rx="3"/><rect x="4" y="4" width="24" height="24" rx="4" stroke-dasharray="3 3"/></svg><span>Kontur zewn.</span></button>
       <button type="button" class="ktile" data-add="holes"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="9" cy="9" r="3"/><circle cx="23" cy="9" r="3"/><circle cx="9" cy="23" r="3"/><circle cx="23" cy="23" r="3"/></svg><span>Otwory, gwinty</span></button>
     </div>
-  </div>
-
-  <div class="stepgroup">
-    <div class="step"><span class="no">4</span><h3>Program</h3><span class="count push" id="n-meta"></span></div>
+    </div>
+    <details class="more" id="n-setdet"><summary>Ustawienia programu: nazwa, baza G54, wysokości, chłodziwo</summary><div class="fields" id="n-head" style="padding-top:8px"></div></details>
     <div id="n-out" class="group"></div>
   </div>
 </section>
@@ -416,10 +482,14 @@
   <div id="w-alarmy" class="wsub" hidden>
     <div class="searchbox">
       <span class="count" id="a-title"></span>
-      <input type="search" class="search" id="a-q" inputmode="search" placeholder="Numer z ekranu maszyny, np. 0041" aria-label="Szukaj alarmu">
+      <div class="qrow">
+        <input type="search" class="search" id="a-q" inputmode="numeric" placeholder="Numer z ekranu, np. 41 albo 10720" aria-label="Szukaj alarmu" autocomplete="off" enterkeyhint="search">
+        <button type="button" class="kbtn" id="a-kb" aria-label="Klawiatura z literami">ABC</button>
+      </div>
     </div>
-    <div class="conn" id="a-help"></div>
+    <div class="group" id="a-recent" hidden></div>
     <ul class="list" id="a-list"></ul>
+    <div class="conn" id="a-help"></div>
     <p class="fine">Lista zawiera tylko najczęstsze alarmy z opisem skróconym po polsku. Alarmy maszyny od producenta (Matsuura, Chiron, Quaser) są tylko w jej instrukcji.</p>
   </div>
 </section>
@@ -496,9 +566,10 @@
       </ol>
       <h3>Nowy program</h3>
       <ol>
-        <li>Program → Nowy program. Dodaj zdjęcie albo PDF rysunku i naciśnij „Odczytaj wymiary” — albo dodaj operacje ręcznie.</li>
-        <li>Sprawdź każdą operację z rysunkiem: wymiary, głębokości, narzędzia, S i F.</li>
-        <li>Na dole jest podgląd ruchów, lista narzędzi i gotowy program do skopiowania albo zapisania.</li>
+        <li>Program → Nowy program. Dodaj zdjęcie albo PDF rysunku i naciśnij „Odczytaj wymiary” — AI zbuduje model detalu. Możesz też pominąć zdjęcie i rysować od razu.</li>
+        <li>Na modelu dotknij elementu, żeby go wybrać: przesuniesz go palcem, a pod modelem zmienisz wymiary. Ptaszek na liście albo przełącznik „Obrabiaj” decyduje, czy element wejdzie do programu.</li>
+        <li>Nowy element dorysujesz narzędziami nad modelem: kieszeń, kieszeń okrągła, kontur, otwór, gwint.</li>
+        <li>Operacje, narzędzia, S i F dobierają się same. Na dole jest podgląd 3D, lista narzędzi i gotowy program. Sprawdź wymiary z rysunkiem przed użyciem.</li>
       </ol>
       <h3>AI</h3>
       <ol>

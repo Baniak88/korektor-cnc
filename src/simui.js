@@ -14,6 +14,55 @@ var SIM_EX = {
   'Wytaczanie z odsunięciem noża': {f:'G00 X0 Y0 Z20.\nG76 X20. Y10. Z-20. R2. Q0.2 F60\nG80', s:'G0 X20 Y10 Z20\nCYCLE86(20,0,2,-20)'}
 };
 
+/* ===== Linia programu prostymi słowami: kolorowanie i wyjaśnienie każdego słowa ===== */
+var WG = {0:'Ruch szybki — dojazd bez skrawania', 1:'Ruch roboczy po prostej (skrawanie)', 2:'Łuk zgodnie z ruchem zegara', 3:'Łuk przeciwnie do ruchu zegara', 4:'Postój (czekanie)',
+  17:'Praca w płaszczyźnie XY (z góry)', 18:'Płaszczyzna XZ', 19:'Płaszczyzna YZ', 28:'Zjazd do punktu referencyjnego maszyny', 40:'Wyłączenie korekcji promienia freza',
+  41:'Korekcja promienia: frez idzie po lewej stronie konturu', 42:'Korekcja promienia: frez idzie po prawej stronie konturu', 43:'Włączenie korekcji długości narzędzia', 49:'Wyłączenie korekcji długości',
+  53:'Ruch w układzie maszyny (nie detalu)', 54:'Układ detalu G54 — punkt zero ustawiony na detalu', 55:'Układ detalu G55', 56:'Układ detalu G56', 57:'Układ detalu G57', 58:'Układ detalu G58', 59:'Układ detalu G59',
+  64:'Płynna jazda po torze', 68:'Obrót układu', 69:'Koniec obrotu / płaszczyzny pochylonej', 73:'Wiercenie z łamaniem wióra', 80:'Koniec cyklu wiercenia', 81:'Cykl wiercenia', 82:'Wiercenie z postojem na dnie', 83:'Wiercenie z wycofaniem (głębokie)',
+  84:'Cykl gwintowania', 85:'Cykl rozwiercania', 90:'Wymiary absolutne — liczone od zera detalu', 91:'Wymiary przyrostowe — od miejsca, gdzie stoi narzędzie', 94:'Posuw w mm na minutę', 95:'Posuw w mm na obrót', 98:'Po otworze wróć na wysokość startu', 99:'Po otworze wróć na płaszczyznę R'};
+var WM = {0:'Stop programu — czeka na START', 1:'Stop warunkowy', 2:'Koniec programu', 3:'Wrzeciono w prawo', 4:'Wrzeciono w lewo', 5:'Stop wrzeciona', 6:'Zmiana narzędzia', 8:'Chłodziwo włączone', 9:'Chłodziwo wyłączone', 17:'Koniec podprogramu', 30:'Koniec programu, powrót na początek', 98:'Wywołanie podprogramu', 99:'Koniec podprogramu'};
+var WN = {CYCLE81:'Cykl wiercenia', CYCLE82:'Wiercenie z postojem', CYCLE83:'Wiercenie głębokie z wycofaniem', CYCLE84:'Gwintowanie sztywne', CYCLE85:'Rozwiercanie', CYCLE86:'Wytaczanie', CYCLE800:'Płaszczyzna pochylona (5 osi)', CYCLE832:'Ustawienie gładkości i dokładności toru',
+  TRAORI:'TCP — sterowanie czubkiem narzędzia przy 5 osiach', TRAFOOF:'Wyłączenie TCP', MCALL:'Cykl wiercenia w każdym kolejnym punkcie', SUPA:'Ruch w układzie maszyny', DIAMOF:'Wymiary w promieniu', TRANS:'Przesunięcie układu', ROT:'Obrót układu', G71:'Wymiary w milimetrach'};
+function wordHelp(line, c){
+  var parts = segmentLine(String(line || ''), c), code = parts.filter(function(p){ return p.t === 'code'; }).map(function(p){ return p.s; }).join(' ').toUpperCase();
+  var cm = parts.filter(function(p){ return p.t !== 'code'; }).map(function(p){ return p.s.replace(/^[(;"]+|[)"]+$/g, '').trim(); }).filter(Boolean).join(' ');
+  var out = [], seenG = {}, motion = null, cyc = false;
+  var nm = code.match(/(^|[^A-Z_])(CYCLE\d+|TRAORI|TRAFOOF|MCALL|SUPA|TRANS|ROT|DIAMOF)(?![A-Z_\d])/g);
+  if (nm) nm.forEach(function(x){ var k = x.replace(/^[^A-Z_]/, ''); if (WN[k]) out.push([k, WN[k]]); });
+  var nb = code.match(/^\s*N(\d+)/); if (nb) out.push(['N' + nb[1], 'Numer bloku — tylko etykieta']);
+  simWords(code.replace(/CYCLE\d+\s*\([^)]*\)/g, '')).forEach(function(w){
+    var k = w[0], v = w[1], s = fmtN(v), t = '';
+    if (k === 'G'){ if (seenG[v]) return; seenG[v] = 1; if (v >= 0 && v <= 3) motion = v; if (v >= 73 && v <= 89) cyc = true;
+      t = c === 'sinumerik' && v === 71 ? 'Wymiary w milimetrach' : c === 'fanuc' && v === 21 ? 'Wymiary w milimetrach' : c === 'fanuc' && v === 20 ? 'Wymiary w calach' : WG[v] || ''; k = 'G' + s; }
+    else if (k === 'M'){ t = WM[v] || ''; k = 'M' + s; }
+    else if (k === 'X' || k === 'Y' || k === 'Z'){ t = (k === 'Z' ? (cyc ? 'Dno otworu Z ' : 'Wysokość Z ') : 'Pozycja ' + k + ' ') + s.replace('.', ',') + ' mm' + (k === 'Z' && v < 0 && !cyc ? ' (w materiale, pod górą detalu)' : ''); k = k + s; }
+    else if (k === 'F'){ t = 'Posuw ' + s.replace('.', ',') + ' mm/min — prędkość skrawania'; k = 'F' + s; }
+    else if (k === 'S'){ t = 'Obroty wrzeciona ' + s + ' obr/min'; k = 'S' + s; }
+    else if (k === 'T'){ t = 'Narzędzie numer ' + s; k = 'T' + s; }
+    else if (k === 'D'){ t = c === 'fanuc' ? 'Numer korekcji promienia freza' : 'Ostrze D' + s + ' — dane narzędzia (długość, promień)'; k = 'D' + s; }
+    else if (k === 'I' || k === 'J'){ t = 'Środek łuku: ' + s.replace('.', ',') + ' mm w ' + (k === 'I' ? 'X' : 'Y') + ' od punktu startu łuku'; k = k + s; }
+    else if (k === 'K'){ t = 'Środek łuku w Z / parametr'; k = 'K' + s; }
+    else if (k === 'R' || k === 'CR'){ t = cyc ? 'Wysokość R — tu zaczyna się wiercenie' : 'Promień łuku ' + s.replace('.', ',') + ' mm'; k = k + (k === 'CR' ? '=' : '') + s; }
+    else if (k === 'A' || k === 'B' || k === 'C'){ t = 'Obrót osi ' + k + ' na ' + s.replace('.', ',') + '°'; k = k + s; }
+    if (t) out.push([k, t]);
+  });
+  var hm = code.match(/(^|[^A-Z_])H\s*(\d+)/); if (hm) out.push(['H' + hm[2], 'Numer korekcji długości narzędzia']);
+  var qm = code.match(/(^|[^A-Z_])Q\s*([\d.]+)/); if (qm && cyc) out.push(['Q' + qm[2], 'Krok wiercenia — co tyle wycofa wiertło']);
+  if (motion === null && !out.length && !cm && /[XYZ]/.test(code)) out.push(['—', 'Ruch tym samym rodzajem co wcześniej (G0/G1 działa dalej)']);
+  if (cm) out.push(['komentarz', cm]);
+  return out;
+}
+function codeHtml(line, c){
+  return segmentLine(String(line || ''), c).map(function(p){
+    if (p.t !== 'code') return '<span class="ck-cm">' + esc(p.s) + '</span>';
+    return esc(p.s).replace(/(^|[^A-Za-z_])([GM])(\d+(?:\.\d+)?)/g, '$1<span class="ck-g">$2$3</span>')
+      .replace(/(^|[^A-Za-z_])([XYZABC])(=?[-+]?[\d.]+)/g, '$1<span class="ck-ax">$2$3</span>')
+      .replace(/(^|[^A-Za-z_])([FS])(=?[-+]?[\d.]+)/g, '$1<span class="ck-fs">$2$3</span>')
+      .replace(/(^|[^A-Za-z_])([TDH])(\d+)/g, '$1<span class="ck-t">$2$3</span>');
+  }).join('');
+}
+
 function SimView(root, opts){
   opts = opts || {};
   var self = this, view = store.get('simview', '3d'), cur = 0, anim = null, frac = 0, partCut = 0, speed = +store.get('simspeed', 1) || 1, data = null, cmp = null, lines = [], ctlNow = 'fanuc', setOpts = {};
@@ -31,10 +80,19 @@ function SimView(root, opts){
     '<button type="button" class="simbtn" data-a="next" aria-label="Następny krok">›</button>' +
     '<input type="range" min="0" max="0" value="0" aria-label="Krok programu">' +
     '<button type="button" class="simbtn spd" data-a="speed" aria-label="Prędkość odtwarzania">1×</button></div>' +
-    '<div class="simline"></div>' +
-    '<div class="simprog" role="list" aria-label="Program — dotknij linii, żeby przejść do niej w symulacji"><ol></ol></div>' +
+    '<div class="simline simnow" aria-live="polite"></div>' +
+    '<details class="more simall"' + (store.get('simAll', false) ? ' open' : '') + '><summary>Cały program — dotknij linii, żeby do niej przejść</summary>' +
+    '<div class="simprog" role="list" aria-label="Program — dotknij linii, żeby przejść do niej w symulacji"><ol></ol></div></details>' +
     '<div class="simleg"></div><ul class="notes simnotes"></ul>';
   var svg = root.querySelector('svg'), range = root.querySelector('input[type=range]'), playBtn = root.querySelector('[data-a=play]'), spdBtn = root.querySelector('[data-a=speed]');
+  root.querySelector('.simall').addEventListener('toggle', function(){ store.set('simAll', this.open); if (this.open && curLi){ var top = curLi.offsetTop - progBox.clientHeight / 3; progBox.scrollTop = Math.max(0, top); } });
+  /* Okno programu jak na sterowaniu: dotknięcie linii przechodzi do niej */
+  root.querySelector('.simnow').addEventListener('click', function(e){
+    var li = e.target.closest('[data-wln]'); if (!li || !data) return;
+    var ln = +li.getAttribute('data-wln'), k = -1;
+    data.steps.forEach(function(s, i){ if (s.ln <= ln) k = i; });
+    stop(); go(k + 1);
+  });
   var progBox = root.querySelector('.simprog'), progOl = progBox.querySelector('ol'), curLi = null;
   var SPEEDS = [0.5, 1, 2, 5, 20];
   function spdLabel(){ spdBtn.textContent = String(speed).replace('.', ',') + '×'; }
@@ -242,7 +300,7 @@ function SimView(root, opts){
     box3.querySelector('.s3five').hidden = !data.five; markV5();
     s3.setMachine(data.five && view5 === 'machine' ? tableRot(mr || {A:0, B:0, C:0}, tp && tp.s && tp.s.tilt) : null);
     var stp = ci >= 0 ? data.steps[ci] : null, tl = tp && tp.s && tp.s.tilt === 'B' ? 'B' : 'A';
-    s3.overlay.innerHTML = stp ? '<span class="s3ln">Linia ' + stp.ln + '</span><code>' + esc((lines[stp.ln - 1] || '').trim().slice(0, 60)) + '</code>' + (tp ? '<span class="s3pos">X ' + fmtP(tp.p[0]) + ' Y ' + fmtP(tp.p[1]) + ' Z ' + fmtP(tp.p[2]) + (data.five ? ' · ' + tl + ' ' + fmtP(mr ? mr[tl] || 0 : 0) + '° C ' + fmtP(mr ? mr.C || 0 : 0) + '°' : '') + '</span>' : '') : '';
+    s3.overlay.innerHTML = stp ? '<span class="s3ln">Linia ' + stp.ln + ' z ' + lines.length + '</span><code>' + esc((lines[stp.ln - 1] || '').trim().slice(0, 60)) + '</code><span class="s3desc">' + esc(stp.text) + '</span>' + (tp ? '<span class="s3pos">X ' + fmtP(tp.p[0]) + ' Y ' + fmtP(tp.p[1]) + ' Z ' + fmtP(tp.p[2]) + (data.five ? ' · ' + tl + ' ' + fmtP(mr ? mr[tl] || 0 : 0) + '° C ' + fmtP(mr ? mr.C || 0 : 0) + '°' : '') + '</span>' : '') : '';
     s3.draw();
   }
   function draw(){
@@ -287,13 +345,30 @@ function SimView(root, opts){
     svg.innerHTML = out;
     stepText();
   }
+  function opAt(ln){
+    for (var i = Math.min(ln, lines.length) - 1; i >= 0; i--){
+      var L = lines[i] || '', m = L.match(/OP(\d+)\s+(.*?)\s+-\s+(T\d+)\s*(.*?)\)?\s*$/i);
+      if (m){ var n = +m[1], nm = setOpts.ops && setOpts.ops[n - 1]; return {n:n, of:setOpts.ops ? setOpts.ops.length : 0, name:nm || m[2].toLowerCase(), tool:m[3] + (m[4] ? ' ' + m[4].toLowerCase().replace(/\bd(\d)/, 'Ø$1') : '')}; }
+    }
+    return null;
+  }
   function stepText(){
-    var ci = curStep(), stp = ci >= 0 ? data.steps[ci] : null, tp = toolPos();
+    var ci = curStep(), stp = ci >= 0 ? data.steps[ci] : null, tp = toolPos(), box = root.querySelector('.simnow');
     markLine(stp ? stp.ln : 0);
-    root.querySelector('.simline').innerHTML = stp
-      ? '<span class="simstep">Linia ' + stp.ln + ' · krok ' + (ci + 1) + ' z ' + data.steps.length + (anim ? ' · w trakcie' : '') + '</span><span class="mono simcode">' + esc((lines[stp.ln - 1] || '').trim()) + '</span><span class="simdesc">' + esc(stp.text) + '</span>' +
-        (tp ? '<span class="simpos mono">Narzędzie: X ' + fmtP(tp.p[0]) + ' · Y ' + fmtP(tp.p[1]) + ' · Z ' + fmtP(tp.p[2]) + (tp.s && tp.s.tool != null ? ' · T' + tp.s.tool + ' Ø' + fmtN(segR(tp.s) * 2) : '') + '</span>' : '')
-      : '<span class="simdesc">' + (data.steps.length ? 'Naciśnij ▶ albo dotknij linii programu poniżej.' : 'Brak ruchów do pokazania.') + '</span>';
+    if (!stp){
+      box.innerHTML = '<p class="sndesc">' + (data.steps.length ? 'Naciśnij <b>▶</b>, żeby zobaczyć program ruch po ruchu, albo <b>›</b>, żeby iść krok po kroku.' : 'Brak ruchów do pokazania.') + '</p>';
+      return;
+    }
+    var op = opAt(stp.ln), a = Math.max(1, stp.ln - 2), b = Math.min(lines.length, stp.ln + 2), win = '';
+    for (var l = a; l <= b; l++) win += '<li data-wln="' + l + '"' + (l === stp.ln ? ' class="cur"' : '') + '><span class="ln">' + l + '</span><code>' + (codeHtml(lines[l - 1] || '', ctlNow) || ' ') + '</code></li>';
+    var words = wordHelp(lines[stp.ln - 1] || '', ctlNow);
+    var tool = tp && tp.s && tp.s.tool != null ? 'T' + tp.s.tool + ' Ø' + fmtN(segR(tp.s) * 2) : '';
+    box.innerHTML =
+      '<div class="snhead"><span class="snop">' + (op ? 'Operacja ' + op.n + (op.of ? ' z ' + op.of : '') + ' · ' + esc(op.name) : tool ? 'Narzędzie ' + esc(tool) : 'Program') + '</span><span class="snstep mono">krok ' + (ci + 1) + ' / ' + data.steps.length + '</span></div>' +
+      '<ol class="snwin" aria-label="Program wokół bieżącej linii">' + win + '</ol>' +
+      '<p class="sndesc"><span class="sntag">Linia ' + stp.ln + '</span>' + esc(stp.text) + '</p>' +
+      (words.length ? '<dl class="snwords">' + words.map(function(w){ return '<div><dt class="mono">' + esc(w[0]) + '</dt><dd>' + esc(w[1]) + '</dd></div>'; }).join('') + '</dl>' : '') +
+      (tp ? '<p class="snpos mono">Narzędzie' + (tool ? ' ' + esc(tool) : '') + ' teraz: X ' + fmtP(tp.p[0]) + ' · Y ' + fmtP(tp.p[1]) + ' · Z ' + fmtP(tp.p[2]) + '</p>' : '');
   }
   function legend(){
     var is3 = view === '3d';
@@ -348,6 +423,137 @@ function refreshProgSim(){
 }
 var _runG = runG;
 runG = function(){ _runG.apply(this, arguments); refreshProgSim(); };
+
+/* Środek wymiaru z programu: połowa między skrajnymi położeniami ruchów roboczych (G1/G2/G3) w zakresie linii */
+function progCenter(axis){
+  var text = $('#g-prog').value, ai = {X:0, Y:1, Z:2}[axis];
+  if (!text.trim() || ai == null) return null;
+  var from = parseInt($('#g-from').value, 10) || 0, to = parseInt($('#g-to').value, 10) || 0, sim;
+  try { sim = simulateProgram(text, ctl()); } catch(e){ return null; }
+  var mn = Infinity, mx = -Infinity, n = 0;
+  sim.segs.forEach(function(s){
+    if ((s.type !== 'feed' && s.type !== 'arc') || (from && s.ln < from) || (to && s.ln > to)) return;
+    var pts = s.type === 'arc' && ai < 2 && s.c ? arcPoints(s, 72) : [s.a, s.b];
+    pts.forEach(function(p){ var v = p && p[ai]; if (v != null && isFinite(v)){ n++; if (v < mn) mn = v; if (v > mx) mx = v; } });
+  });
+  if (!n || !(mx > mn)) return null;
+  return {min:mn, max:mx, c:r3((mn + mx) / 2)};
+}
+function autoCenter(quiet){
+  var pc = progCenter(S.gAxis);
+  if (!pc){ if (!quiet) toast('Nie znalazłem ruchów roboczych w ' + S.gAxis + (($('#g-from').value || $('#g-to').value) ? ' w tym zakresie linii' : '') + '.'); return false; }
+  $('#g-center').value = String(pc.c);
+  toast(S.gAxis + ' od ' + fmtN(pc.min) + ' do ' + fmtN(pc.max) + ' → środek ' + fmtN(pc.c));
+  runG(); return true;
+}
+$('#g-autoc').addEventListener('click', function(){ autoCenter(false); });
+
+/* Z wyniku korekcji prosto do programu: wartość zmiany już wpisana */
+function progFromKor(r, meas){
+  if (!r) return;
+  var isR = r.ax === 'R';
+  store.set('ptab', 'gcode'); showTab('gcode'); window.scrollTo(0, 0);
+  if (isR){
+    if (S.gAxis === 'Z' || ROT[S.gAxis]) S.gAxis = 'X';
+    S.gMode = 'widen'; setChecked('#g-ops', 'data-mode', 'widen'); renderAxes();
+    $('#g-wdelta').value = fmtDev(r3(r.target - meas));
+    var ok = S.gEdited && autoCenter(true);
+    if (!ok) runG();
+    toast('Zmiana wymiaru ' + f3(r.target - meas, true) + ' wpisana. Wybierz oś' + (ok ? ' i sprawdź środek.' : ', wczytaj program i ustaw środek.'));
+  } else {
+    S.gAxis = 'Z'; S.gMode = 'shift'; setChecked('#g-ops', 'data-mode', 'shift'); renderAxes();
+    $('#g-sdelta').value = fmtDev(r.delta);
+    runG();
+    toast('Przesunięcie Z ' + f3(r.delta, true) + ' wpisane.' + (S.gEdited ? ' Ustaw zakres linii tej powierzchni.' : ' Wczytaj program.'));
+  }
+}
+
+/* ===== Kontrola przed wgraniem (panel w zakładce Program) ===== */
+var PF = store.get('pf', {});
+var PF_IDS = {wx:'pf-wx', wy:'pf-wy', wz:'pf-wz', L:'pf-L', d:'pf-d', top:'pf-top'};
+function pfDefLim(){ var t = MACHINES[S.machine].trav || [500, 400, 400]; return {x:['-' + t[0], '0'], y:['-' + t[1], '0'], z:['-' + t[2], '0']}; }
+function pfCur(){
+  var c = PF[S.machine];
+  if (!c){ c = PF[S.machine] = {wx:'', wy:'', wz:'', L:'', d:'', top:'', lim:pfDefLim(), limOk:false}; }
+  if (!c.lim) c.lim = pfDefLim();
+  return c;
+}
+function pfSave(){ store.set('pf', PF); }
+function pfFill(){
+  var c = pfCur();
+  Object.keys(PF_IDS).forEach(function(k){ $('#' + PF_IDS[k]).value = c[k] || ''; });
+  $('#pf-lim').innerHTML = '<span></span><span class="lab">min</span><span class="lab">max</span>' + ['x', 'y', 'z'].map(function(k){
+    return '<span class="limax">' + k.toUpperCase() + '</span>' +
+      ['0', '1'].map(function(i){ return '<div class="num"><input id="pf-l' + k + i + '" data-lim="' + k + i + '" inputmode="decimal" autocomplete="off" value="' + esc(c.lim[k][i]) + '" aria-label="' + k.toUpperCase() + ' ' + (i === '0' ? 'min' : 'max') + '"><button type="button" class="pm" data-for="pf-l' + k + i + '" aria-label="Zmień znak">±</button></div>'; }).join('');
+  }).join('');
+  $('#pf-limok').checked = !!c.limOk;
+  var t = MACHINES[S.machine].trav;
+  $('#pf-limnote').textContent = c.limOk ? 'Wynik kontroli krańcówek jest pewny.' : 'Na start: od −przesuwu do 0' + (t ? ' (' + t.join(' / ') + ' mm)' : '') + '. Najedź osią do krańcówki w JOG i odczytaj MASZYNA — u Ciebie zero może być gdzie indziej.';
+  if (!c.wx && !c.wy && !c.wz) $('#pf-set').open = true;
+}
+function pfOpts(){
+  var c = pfCur(), lim = {};
+  ['x', 'y', 'z'].forEach(function(k){ var a = parseNum(c.lim[k][0]), b = parseNum(c.lim[k][1]); if (isFinite(a) && isFinite(b) && b > a) lim[k] = [a, b]; });
+  var wo = {x:parseNum(c.wx), y:parseNum(c.wy), z:parseNum(c.wz)};
+  return {wo:(isFinite(wo.x) || isFinite(wo.y) || isFinite(wo.z)) ? wo : null, L:parseNum(c.L), d:parseNum(c.d), top:isFinite(parseNum(c.top)) ? parseNum(c.top) : 0, lim:lim, limOk:!!c.limOk};
+}
+var PF_IC = {bad:'<path d="M12 4L2.5 20h19z"/><path d="M12 10v4.5M12 17.2v.3"/>', warn:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5.5M12 16v.3"/>', ok:'<circle cx="12" cy="12" r="8.5"/><path d="M8 12.2l2.8 2.8L16.2 9.5"/>', na:'<circle cx="12" cy="12" r="8.5"/><path d="M8 12h8"/>'};
+var PF_SEV = {bad:'Błąd', warn:'Sprawdź', ok:'OK', na:'Brak danych'};
+var pfTimer = null, pfLast = null;
+function plErr(n){ return n === 1 ? 'błąd' : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? 'błędy' : 'błędów'; }
+function pfSoon(){ clearTimeout(pfTimer); pfTimer = setTimeout(renderPF, 350); }
+function pfText(){ return gLast && gLast.changes && gLast.changes.length ? gLast.text : $('#g-prog').value; }
+function renderPF(){
+  var text = pfText(), list = $('#pf-list'), sum = $('#pf-sum');
+  $('#pf-which').textContent = gLast && gLast.changes && gLast.changes.length ? 'program po zmianie' : 'program wejściowy';
+  if (!text.trim()){ pfLast = null; sum.innerHTML = '<p class="empty">Wklej program, a sprawdzę go przed wgraniem.</p>'; list.innerHTML = ''; return; }
+  var r;
+  try { r = preflight(text, ctl(), pfOpts()); } catch(e){ sum.innerHTML = '<p class="empty">Nie udało się przeanalizować programu.</p>'; list.innerHTML = ''; return; }
+  pfLast = r;
+  var c = r.cnt, state = c.bad ? 'bad' : c.warn ? 'warn' : 'ok';
+  sum.className = 'pf-sum ' + state;
+  sum.innerHTML = '<span class="pf-big">' + (c.bad ? 'Nie wgrywaj' : c.warn ? 'Sprawdź przed wgraniem' : 'Gotowy do przejazdu na sucho') + '</span>' +
+    '<span class="pf-cnt"><b class="mono">' + c.bad + '</b> ' + plErr(c.bad) + ' · <b class="mono">' + c.warn + '</b> do sprawdzenia · <b class="mono">' + c.ok + '</b> OK</span>' +
+    (isFinite(r.ext.x[0]) ? '<span class="pf-ext mono">X ' + fmtN(r.ext.x[0]) + '…' + fmtN(r.ext.x[1]) + ' · Y ' + fmtN(r.ext.y[0]) + '…' + fmtN(r.ext.y[1]) + ' · Z ' + fmtN(r.ext.z[0]) + '…' + fmtN(r.ext.z[1]) + '</span>' : '');
+  list.innerHTML = r.items.map(function(it){
+    return '<li class="pfi ' + it.sev + '"><svg class="i" viewBox="0 0 24 24" aria-hidden="true">' + PF_IC[it.sev] + '</svg>' +
+      '<div class="pft"><div class="pfh"><b>' + esc(it.title) + '</b><span class="pfs">' + PF_SEV[it.sev] + '</span></div><p>' + esc(it.text) + '</p>' +
+      (it.lines.length ? '<div class="pfl">' + it.lines.slice(0, 8).map(function(ln){ return '<button type="button" class="cat mono" data-pfln="' + ln + '">N' + ln + '</button>'; }).join('') + '</div>' : '') +
+      (it.sev === 'na' && it.k === 'limit' && !pfOpts().wo ? '<button type="button" class="tlink" data-pfset>Wpisz G54 i długość narzędzia</button>' : '') +
+      '</div></li>';
+  }).join('');
+  pfBadge();
+}
+function pfBadge(){
+  var b = $('#g-pfchip'); if (!b || !pfLast) return;
+  var c = pfLast.cnt;
+  b.className = 'chip ' + (c.bad ? 'bad' : c.warn ? 'warn' : 'ok');
+  b.textContent = 'Kontrola: ' + (c.bad ? c.bad + ' ' + plErr(c.bad) : c.warn ? c.warn + ' do sprawdzenia' : 'OK');
+}
+document.addEventListener('click', function(e){
+  var b = e.target.closest('[data-pfln]');
+  if (b){
+    var ln = b.getAttribute('data-pfln'), li = $('#g-sim .simprog li[data-ln="' + ln + '"]');
+    if (li && !$('#g-simwrap').hidden){ li.click(); $('#g-sim').scrollIntoView({behavior:'smooth', block:'start'}); }
+    else toast('Linia ' + ln);
+    return;
+  }
+  if (e.target.closest('[data-pfset]')){ var d = $('#pf-set'); d.open = true; setTimeout(function(){ $('#pf-wx').focus(); }, 30); return; }
+  if (e.target.closest('#g-pfchip')){ $('#pf').scrollIntoView({behavior:'smooth', block:'start'}); }
+});
+$('#pf-set').addEventListener('input', function(e){
+  var c = pfCur(), id = e.target.id;
+  Object.keys(PF_IDS).forEach(function(k){ if (PF_IDS[k] === id) c[k] = e.target.value; });
+  var l = e.target.getAttribute('data-lim'); if (l) c.lim[l[0]][+l[1]] = e.target.value;
+  pfSave(); pfSoon();
+});
+$('#pf-limok').addEventListener('change', function(){ pfCur().limOk = this.checked; pfSave(); pfFill(); renderPF(); });
+pfFill();
+var _runG2 = runG;
+runG = function(){ _runG2.apply(this, arguments); pfSoon(); };
+var _occPF = onControlChange;
+onControlChange = function(){ _occPF(); pfFill(); pfSoon(); };
+pfSoon();
 
 /* „Zobacz ruch” przy kodach */
 document.addEventListener('click', function(e){

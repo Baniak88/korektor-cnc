@@ -37,6 +37,82 @@ function calcCorrection(o){
   return res;
 }
 
+/* --- Pasowania ISO 286 (najczęstsze): odchyłki w µm wg przedziałów wymiarów do 500 mm --- */
+var FIT_R = [3,6,10,18,30,50,80,120,180,250,315,400,500];
+var FIT_IT = {
+  5:[4,5,6,8,9,11,13,15,18,20,23,25,27], 6:[6,8,9,11,13,16,19,22,25,29,32,36,40],
+  7:[10,12,15,18,21,25,30,35,40,46,52,57,63], 8:[14,18,22,27,33,39,46,54,63,72,81,89,97],
+  9:[25,30,36,43,52,62,74,87,100,115,130,140,155], 10:[40,48,58,70,84,100,120,140,160,185,210,230,250],
+  11:[60,75,90,110,130,160,190,220,250,290,320,360,400]
+};
+/* Wałki d–h: odchyłka górna es */
+var FIT_ES = {
+  d:[-20,-30,-40,-50,-65,-80,-100,-120,-145,-170,-190,-210,-230], e:[-14,-20,-25,-32,-40,-50,-60,-72,-85,-100,-110,-125,-135],
+  f:[-6,-10,-13,-16,-20,-25,-30,-36,-43,-50,-56,-62,-68], g:[-2,-4,-5,-6,-7,-9,-10,-12,-14,-15,-17,-18,-20], h:[0,0,0,0,0,0,0,0,0,0,0,0,0]
+};
+/* Wałki k–p: odchyłka dolna ei (k: wartości dla IT4–IT7) */
+var FIT_EI = {
+  k:[0,1,1,1,2,2,2,3,3,4,4,4,5], m:[2,4,6,7,8,9,11,13,15,17,20,21,23],
+  n:[4,8,10,12,15,17,20,23,27,31,34,37,40], p:[6,12,15,18,22,26,32,37,43,50,56,62,68]
+};
+/* Δ dla otworów K, M, N, P (IT5–IT8) */
+var FIT_DELTA = {5:[0,1,2,3,3,4,5,5,6,6,7,7,7], 6:[0,3,3,3,4,5,6,7,7,9,9,11,13], 7:[0,4,6,7,8,9,11,13,15,17,20,21,23], 8:[0,6,7,9,12,14,16,19,23,26,29,32,34]};
+/* Zwraca {name, hole, up, lo} w mm albo {err} gdy pasowanie nieobsługiwane. */
+function parseFit(s){
+  var m = String(s || '').trim().match(/^([A-Za-z]{1,2})\s*(\d{1,2})$/);
+  if (!m) return null;
+  var L = m[1], g = +m[2];
+  if (L.length === 2 && L.toLowerCase() !== 'js') return null;
+  return {L:L, g:g, hole:L[0] === L[0].toUpperCase(), name:(L.length === 2 ? (L[0] === 'J' ? 'JS' : 'js') : L) + g};
+}
+function isoFit(size, fit){
+  var f = typeof fit === 'string' ? parseFit(fit) : fit;
+  if (!f) return {err:'Wpisz np. H7, h6, g6, k6, JS7.'};
+  if (!(size > 0) || size > 500) return {err:'Pasowania liczę dla wymiarów od 0 do 500 mm.'};
+  var IT = FIT_IT[f.g];
+  if (!IT) return {err:'Obsługuję klasy IT5–IT11.'};
+  var i = 0; while (size > FIT_R[i] + 1e-9) i++;
+  var it = IT[i], l = f.L.toLowerCase(), es, ei;
+  if (l === 'js'){ es = it / 2; ei = -it / 2; }
+  else if (!f.hole){
+    if (FIT_ES[l] != null){ es = FIT_ES[l][i]; ei = es - it; }
+    else if (FIT_EI[l] != null){ ei = l === 'k' && (f.g < 4 || f.g > 7) ? 0 : FIT_EI[l][i]; es = ei + it; }
+    else return {err:'Wałek ' + f.name + ' nie jest w tabeli. Obsługuję d, e, f, g, h, js, k, m, n, p.'};
+  } else {
+    if (FIT_ES[l] != null){ ei = -FIT_ES[l][i]; es = ei + it; }
+    else if (FIT_EI[l] != null){
+      if (f.g > (l === 'p' ? 7 : 8) || f.g < 5 || size > 250) return {err:'Otwór ' + f.name + ' dla tego wymiaru wpisz ręcznie z tabeli.'};
+      es = -FIT_EI[l][i] + FIT_DELTA[f.g][i]; ei = es - it;
+    } else return {err:'Otwór ' + f.name + ' nie jest w tabeli. Obsługuję D, E, F, G, H, JS, K, M, N, P.'};
+  }
+  return {name:f.name, hole:f.hole, up:es / 1000, lo:ei / 1000};
+}
+/* Rozbija „20H7”, „Ø20 g6” na wymiar i pasowanie. */
+function splitFit(s){
+  var m = String(s || '').replace(/[Øø⌀]/g, '').trim().match(/^(\d+(?:[.,]\d+)?)\s*([A-Za-z]{1,2}\s*\d{1,2})$/);
+  return m ? {nom:m[1].replace(',', '.'), fit:m[2].replace(/\s+/g, '')} : null;
+}
+
+/* --- Numery alarmów: „41”, „0041”, „PS41”, „ps 0041” trafiają w PS0041 --- */
+function alarmKey(s){
+  var m = String(s || '').toUpperCase().replace(/\s+/g, '').match(/^([A-Z]{0,3})0*(\d+)$/);
+  return m ? {p:m[1], n:m[2]} : null;
+}
+/* 0 = ten sam numer, 1 = numer zaczyna się od wpisanych cyfr, -1 = numer nie pasuje (szukaj w tekście) */
+function alarmNumScore(code, query){
+  var wild = String(code).match(/^(\d+)(x+)$/i), qk = alarmKey(query);
+  if (wild && qk && !qk.p){
+    if (qk.n.length > String(code).length) return -1;
+    var pre = qk.n.indexOf(wild[1]) === 0 || wild[1].indexOf(qk.n) === 0;
+    return pre ? (qk.n.length === String(code).length ? 0 : 1) : -1;
+  }
+  var ck = alarmKey(code);
+  if (!qk || !ck) return -1;
+  if (qk.n === ck.n && (!qk.p || qk.p === ck.p)) return 0;
+  if ((!qk.p || qk.p === ck.p) && ck.n.indexOf(qk.n) === 0) return 1;
+  return -1;
+}
+
 /* --- Program G-code --- */
 function segmentLine(line, ctl){
   var parts = [], buf = '', i = 0;
@@ -193,7 +269,7 @@ function simulateProgram(text, ctl, opts){
   var segs = [], steps = [], notes = {}, noteOrder = [];
   var rot = {A:0, B:0, C:0}, frame = null, tcp = false, rotUsed = false;
   var tool = null, tdia = null, pendT = null, pendD = null, lastDia = null, cycKind = null, ln = 0, zUnknown = false;
-  function addSeg(o){ o.tool = tool; o.td = tdia; o.comp = comp; o.rot = {A:rot.A, B:rot.B, C:rot.C}; o.F = frame; o.tcp = tcp; if (zUnknown) o.zu = true; if (o.type === 'hole') o.cyc = cycKind; segs.push(o); }
+  function addSeg(o){ o.tool = tool; o.td = tdia; o.f = feed; o.comp = comp; o.rot = {A:rot.A, B:rot.B, C:rot.C}; o.F = frame; o.tcp = tcp; if (zUnknown) o.zu = true; if (o.type === 'hole') o.cyc = cycKind; segs.push(o); }
   function note(k, t){ if (!notes[k]){ notes[k] = t; noteOrder.push(k); } }
   function pt(p){ return [p.x, p.y, p.z == null ? 0 : p.z]; }
   function hole(ln, x, y, depth, top){
@@ -359,6 +435,97 @@ function simulateProgram(text, ctl, opts){
   if (frame || tcp) note('five5', 'Program kończy się z aktywną płaszczyzną pochyloną albo TCP — sprawdź G69 / G49 (TRAFOOF, CYCLE800()).');
   return {segs:segs, steps:steps, notes:noteOrder.map(function(k){ return notes[k]; })};
 }
+/* ===== Kontrola przed wgraniem: krańcówki, promień narzędzia, posuw, przejazdy w powietrzu =====
+   o: {wo:{x,y,z}|null (G54 w pozycjach maszyny), L (najdłuższe narzędzie), d (Ø gdy brak w programie), top (Z góry materiału),
+       lim:{x:[min,max], y:[...], z:[...]} (pozycje maszyny, Z = linia pomiaru wrzeciona), limOk (zakresy sprawdzone na maszynie)} */
+function preflight(text, ctl, o){
+  o = o || {};
+  var sim = simulateProgram(text, ctl), segs = sim.segs, items = [];
+  var AX = ['x', 'y', 'z'], ext = {x:[Infinity, -Infinity], y:[Infinity, -Infinity], z:[Infinity, -Infinity]}, extLn = {x:[0, 0], y:[0, 0], z:[0, 0]};
+  var skipped = 0, moves = 0;
+  function pts(s){ return s.type === 'arc' ? arcPoints(s, 48) : [s.a, s.b]; }
+  segs.forEach(function(s){
+    if (s.zu) return;
+    if (s.F || s.tcp || (s.rot && (s.rot.A || s.rot.B || s.rot.C))){ skipped++; return; }
+    moves++;
+    pts(s).forEach(function(p){ AX.forEach(function(k, i){ var v = p[i]; if (v == null || !isFinite(v)) return;
+      if (v < ext[k][0]){ ext[k][0] = v; extLn[k][0] = s.ln; } if (v > ext[k][1]){ ext[k][1] = v; extLn[k][1] = s.ln; } }); });
+  });
+  function n3(v){ return String(r3(v)); }
+
+  /* 1. Krańcówki */
+  var lim = o.lim, ot = {k:'limit', title:'Krańcówki', lines:[]};
+  if (!moves) { ot.sev = 'na'; ot.text = skipped ? 'Wszystkie ruchy są w płaszczyźnie pochylonej albo z obrotem osi — ich pozycji w maszynie nie liczę.' : 'Brak ruchów do sprawdzenia.'; }
+  else {
+    var bad = [], warn = [], spanBad = [];
+    AX.forEach(function(k){
+      if (!lim || !lim[k]) return;
+      var trav = lim[k][1] - lim[k][0], span = ext[k][1] - ext[k][0];
+      if (span > trav + 1e-6){ spanBad.push(k.toUpperCase() + ': program zajmuje ' + n3(span) + ' mm, a przesuw to ' + n3(trav) + ' mm'); ot.lines.push(extLn[k][0], extLn[k][1]); }
+    });
+    if (o.wo && lim){
+      AX.forEach(function(k){
+        if (!isFinite(o.wo[k]) || !lim[k]) return;
+        var add = o.wo[k] + (k === 'z' ? (isFinite(o.L) ? o.L : 0) : 0);
+        var mn = ext[k][0] + add, mx = ext[k][1] + add, K = k.toUpperCase();
+        if (mn < lim[k][0] - 1e-6){ bad.push(K + ' w linii ' + extLn[k][0] + ': ' + n3(mn) + ' w maszynie, za krańcówką − o ' + n3(lim[k][0] - mn) + ' mm'); ot.lines.push(extLn[k][0]); }
+        else if (mn < lim[k][0] + 5) warn.push(K + ' w linii ' + extLn[k][0] + ': ' + n3(mn - lim[k][0]) + ' mm od krańcówki −');
+        if (mx > lim[k][1] + 1e-6){ bad.push(K + ' w linii ' + extLn[k][1] + ': ' + n3(mx) + ' w maszynie, za krańcówką + o ' + n3(mx - lim[k][1]) + ' mm'); ot.lines.push(extLn[k][1]); }
+        else if (mx > lim[k][1] - 5) warn.push(K + ' w linii ' + extLn[k][1] + ': ' + n3(lim[k][1] - mx) + ' mm od krańcówki +');
+      });
+    }
+    var all = spanBad.concat(bad);
+    if (all.length){ ot.sev = o.limOk ? 'bad' : 'warn'; ot.text = (o.limOk ? '' : 'Według przyjętych zakresów osi (niesprawdzonych na maszynie): ') + all.join('. ') + '.'; }
+    else if (!o.wo){ ot.sev = 'na'; ot.text = 'Wpisz G54 (pozycje MASZYNA) i najdłuższe narzędzie, żeby policzyć, czy ruchy zmieszczą się w przesuwach.'; }
+    else if (warn.length){ ot.sev = 'warn'; ot.text = 'Mieści się, ale blisko krańcówki: ' + warn.join('. ') + '.'; }
+    else { ot.sev = 'ok'; ot.text = 'Wszystkie ruchy mieszczą się w przesuwach' + (o.limOk ? '' : ' (według przyjętych zakresów osi)') + (isFinite(o.L) ? '' : '. Bez długości narzędzia Z jest liczone dla narzędzia o długości 0') + '.'; }
+    if (skipped) ot.text += ' Pominięte ruchy z obrotem osi albo płaszczyzną pochyloną: ' + skipped + '.';
+  }
+  items.push(ot);
+
+  /* 2. Promień narzędzia przy G41/G42 */
+  var rr = {k:'radius', title:'Promień narzędzia', lines:[]}, rb = [], rw = [], noD = false, comps = 0, minIn = Infinity;
+  segs.forEach(function(s){
+    if (s.type !== 'arc' || (s.comp !== 41 && s.comp !== 42)) return;
+    comps++;
+    var d = s.td > 0 ? s.td : o.d; if (!(d > 0)){ noD = true; return; }
+    var inside = (s.comp === 41) !== !!s.cw, R = d / 2;
+    if (!inside) return;
+    minIn = Math.min(minIn, s.r);
+    if (R > s.r + 1e-6){ rb.push('linia ' + s.ln + ': łuk R' + n3(s.r) + ', frez Ø' + n3(d)); rr.lines.push(s.ln); }
+    else if (R > s.r - 0.05){ rw.push('linia ' + s.ln + ': łuk R' + n3(s.r) + ', frez Ø' + n3(d)); rr.lines.push(s.ln); }
+  });
+  var hasComp = segs.some(function(s){ return s.comp === 41 || s.comp === 42; });
+  if (rb.length){ rr.sev = 'bad'; rr.text = 'Frez nie zmieści się w łuku wewnętrznym — alarm ' + (ctl === 'fanuc' ? 'PS0041' : '10751') + ' albo podcięcie konturu. ' + rb.slice(0, 2).join('; ') + (rb.length > 2 ? ' i dalej' : '') + '. Weź mniejszy frez albo zwiększ promień łuku.'; }
+  else if (rw.length){ rr.sev = 'warn'; rr.text = 'Promień freza jest równy promieniowi łuku — zostaje zero zapasu. Każde dodatnie zużycie promienia da alarm ' + (ctl === 'fanuc' ? 'PS0041' : '10751') + '. ' + rw.slice(0, 2).join('; ') + (rw.length > 2 ? ' i dalej' : '') + '.'; }
+  else if (noD){ rr.sev = 'na'; rr.text = 'Program ma łuki z G41/G42, ale nie znam średnicy freza. Wpisz Ø w ustawieniach albo dopisz ją w komentarzu przy narzędziu, np. (FREZ D10).'; }
+  else if (!hasComp){ rr.sev = 'na'; rr.text = 'Program nie używa G41/G42 — tor jest po środku narzędzia, nie ma czego sprawdzić.'; }
+  else { rr.sev = 'ok'; rr.text = comps ? 'Frez mieści się we wszystkich łukach wewnętrznych' + (isFinite(minIn) ? ' (najmniejszy R' + n3(minIn) + ')' : '') + '.' : 'Kontur z G41/G42 bez łuków — w porządku.'; }
+  items.push(rr);
+
+  /* 3. Posuw */
+  var ff = {k:'feed', title:'Posuw F', lines:[]}, noF = segs.filter(function(s){ return (s.type === 'feed' || s.type === 'arc') && !(s.f > 0); });
+  if (noF.length){ ff.sev = 'bad'; ff.lines = [noF[0].ln]; ff.text = 'Ruch roboczy bez posuwu w linii ' + noF[0].ln + ' — alarm ' + (ctl === 'fanuc' ? 'PS0011' : '14800') + '. Dopisz F przed pierwszym G1/G2/G3.'; }
+  else { ff.sev = 'ok'; ff.text = 'Każdy ruch roboczy ma posuw.'; }
+  items.push(ff);
+
+  /* 4. Przejazdy w powietrzu: G1/G2/G3 w całości nad materiałem */
+  var top = isFinite(o.top) ? o.top : 0, air = {k:'air', title:'Przejazdy w powietrzu', lines:[]}, aLen = 0, aT = 0, aN = 0;
+  segs.forEach(function(s){
+    if ((s.type !== 'feed' && s.type !== 'arc') || s.zu || s.F || s.tcp) return;
+    if (Math.min(s.a[2], s.b[2]) <= top + 0.5) return;
+    var P = pts(s), L = 0; for (var i = 1; i < P.length; i++) L += Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1], P[i][2] - P[i - 1][2]);
+    if (L < 1) return;
+    aLen += L; aN++; if (s.f > 0) aT += L / s.f * 60; air.lines.push(s.ln);
+  });
+  if (aN){ air.sev = aLen > 30 || aT > 5 ? 'warn' : 'ok'; air.text = aN + ' ' + (aN === 1 ? 'ruch' : 'ruchy') + ' posuwem ponad Z' + n3(top) + ': ' + n3(Math.round(aLen)) + ' mm' + (aT ? ', ok. ' + (aT < 60 ? Math.round(aT) + ' s' : (aT / 60).toFixed(1).replace('.', ',') + ' min') + ' na cykl' : '') + '. Tam, gdzie narzędzie nie dotyka materiału, wystarczy G0.'; }
+  else { air.sev = 'ok'; air.text = 'Brak ruchów roboczych nad Z' + n3(top) + '.'; }
+  items.push(air);
+
+  var cnt = {bad:0, warn:0, ok:0, na:0}; items.forEach(function(it){ cnt[it.sev]++; it.lines = it.lines.filter(function(v, i, a){ return v && a.indexOf(v) === i; }).sort(function(a, b){ return a - b; }); });
+  return {items:items, ext:ext, extLn:extLn, cnt:cnt, skipped:skipped, moves:moves};
+}
+
 function arcPoints(s, n){
   var a0 = Math.atan2(s.a[1] - s.c[1], s.a[0] - s.c[0]), a1 = Math.atan2(s.b[1] - s.c[1], s.b[0] - s.c[0]);
   var sweep = a1 - a0;

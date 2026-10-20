@@ -44,7 +44,7 @@ var S = {
   log: store.get('log', []),
   confirmClear: false,
   gEdited: false, gFileName: '',
-  theme: store.get('theme', 'auto'),
+  theme: store.get('theme', 'dark'),
   wake: store.get('wake', false),
   rangePending: false,
   axMap: store.get('axMap', {})
@@ -203,8 +203,8 @@ function onControlChange(){
 if (!store.get('tipSeen', false)) $('#tipcard').hidden = false;
 $('#tipClose').addEventListener('click', function(){ $('#tipcard').hidden = true; store.set('tipSeen', true); });
 
-var FORM_IDS = ['k-nom','k-meas','k-up','k-lo','k-custom','k-tool','k-cur'];
-var EXAMPLE = {'k-nom':'20','k-meas':'19.998','k-up':'0.021','k-lo':'0','k-custom':'','k-tool':'','k-cur':'-0.010'};
+var FORM_IDS = ['k-nom','k-meas','k-up','k-lo','k-custom','k-tool','k-cur','k-fit'];
+var EXAMPLE = {'k-nom':'20','k-meas':'19.998','k-up':'0.021','k-lo':'0','k-custom':'','k-tool':'','k-cur':'-0.010','k-fit':'H7'};
 var saved = store.get('form', null);
 var kExample = !saved;
 function fillForm(vals){ FORM_IDS.forEach(function(id){ $('#' + id).value = vals[id] != null ? vals[id] : ''; }); }
@@ -225,23 +225,101 @@ function renderKinds(){
 }
 $('#kinds').addEventListener('click', function(e){
   var b = e.target.closest('.ktile'); if (!b) return;
-  S.kind = b.getAttribute('data-k'); store.set('kind', S.kind); renderKinds(); renderKorekcja();
+  S.kind = b.getAttribute('data-k'); store.set('kind', S.kind); renderKinds(); renderFitChips(); if (applyFit()) saveForm(); renderKorekcja();
 });
 segClick('#wallSeg', 'data-dir', function(v){ S.wallDir = Number(v); store.set('wallDir', S.wallDir); renderKorekcja(); });
 segClick('#tgtSeg', 'data-t', function(v){ S.target = v; kExample = false; saveForm(); renderKorekcja(); if (v === 'custom') setTimeout(function(){ $('#k-custom').focus(); }, 30); });
-FORM_IDS.forEach(function(id){ $('#' + id).addEventListener('input', function(){ kExample = false; saveForm(); renderKorekcja(); }); });
+FORM_IDS.forEach(function(id){ $('#' + id).addEventListener('input', function(){
+  kExample = false;
+  if (id === 'k-nom'){ var sp = splitFit(this.value); if (sp){ this.value = sp.nom; $('#k-fit').value = sp.fit; } }
+  if (id === 'k-up' || id === 'k-lo'){ if ($('#k-fit').value){ $('#k-fit').value = ''; } }
+  if (id === 'k-nom' || id === 'k-fit') applyFit();
+  saveForm(); renderKorekcja();
+}); });
 $('#k-dia').addEventListener('change', function(){ saveForm(); renderKorekcja(); });
-var NEXT = {'k-nom':'k-up', 'k-up':'k-lo', 'k-lo':'k-meas'};
+var NEXT = {'k-nom':'k-fit', 'k-fit':'k-meas', 'k-up':'k-lo', 'k-lo':'k-meas'};
 Object.keys(NEXT).forEach(function(id){ $('#' + id).addEventListener('keydown', function(e){ if (e.key === 'Enter'){ e.preventDefault(); $('#' + NEXT[id]).focus(); } }); });
 $('#k-meas').addEventListener('keydown', function(e){ if (e.key === 'Enter'){ this.blur(); $('#kres').scrollIntoView({behavior:'smooth', block:'center'}); } });
-$('#kNext').addEventListener('click', function(){ $('#k-meas').value = ''; kExample = false; saveForm(); renderKorekcja(); $('#k-meas').focus(); $('#k-meas').scrollIntoView({block:'center'}); });
+$('#kNext').addEventListener('click', function(){ addFeat(); $('#k-meas').value = ''; kExample = false; saveForm(); renderKorekcja(); $('#k-meas').focus(); $('#k-meas').scrollIntoView({block:'center'}); });
 $('#kReset').addEventListener('click', function(){
-  fillForm({}); S.target = 'mid'; $('#k-dia').checked = false; kExample = false; saveForm(); renderKorekcja(); $('#k-nom').focus();
+  fillForm({}); S.target = 'mid'; $('#k-dia').checked = false; kExample = false; applyFit(); saveForm(); renderKorekcja(); $('#k-nom').focus();
+});
+
+/* ----- Pasowanie ISO: H7, g6… wpisuje odchyłki ----- */
+var FIT_CHIPS = {inner:['H7','H8','H6','G7','JS7','K7'], outer:['h6','h7','g6','f7','k6','js6']};
+function fmtDev(v){ var s = String(+(+v).toFixed(4)); return s === '-0' ? '0' : s; }
+function fmtDevS(v){ var s = fmtDev(v); return +s > 0 ? '+' + s : s; }
+function applyFit(){
+  var raw = $('#k-fit').value.trim(), msg = $('#k-fitmsg');
+  msg.className = 'hint'; msg.textContent = '';
+  if (!raw || $('#fitWrap').hidden) return false;
+  var nom = parseNum($('#k-nom').value), f = parseFit(raw);
+  if (!f){ if (raw.length >= 2){ msg.className = 'hint bad'; msg.textContent = 'Nie znam „' + raw + '”. Wpisz np. H7, h6, g6, k6, JS7.'; } return false; }
+  if (!isFinite(nom)){ msg.textContent = f.name + ' — wpisz nominał, a odchyłki wpiszę sam.'; return false; }
+  var r = isoFit(Math.abs(nom), f);
+  if (r.err){ msg.className = 'hint bad'; msg.textContent = r.err; return false; }
+  $('#k-up').value = fmtDev(r.up); $('#k-lo').value = fmtDev(r.lo);
+  var kindHole = S.kind === 'inner', mism = (S.kind === 'inner' || S.kind === 'outer') && r.hole !== kindHole;
+  msg.textContent = 'Ø' + Math.abs(nom) + ' ' + r.name + ': ' + fmtDevS(r.up) + ' / ' + fmtDevS(r.lo) + ' mm' +
+    (mism ? ' · uwaga: ' + (r.hole ? 'duża litera = otwór, a mierzysz czop' : 'mała litera = wałek, a mierzysz otwór') : '');
+  if (mism) msg.className = 'hint bad';
+  return true;
+}
+function renderFitChips(){
+  var list = FIT_CHIPS[S.kind];
+  $('#fitWrap').hidden = !list;
+  if (!list) return;
+  var cur = $('#k-fit').value.trim();
+  $('#k-fitchips').innerHTML = list.map(function(f){ return '<button type="button" class="cat" data-fit="' + f + '" aria-pressed="' + (cur === f) + '">' + f + '</button>'; }).join('');
+}
+$('#k-fitchips').addEventListener('click', function(e){
+  var b = e.target.closest('[data-fit]'); if (!b) return;
+  $('#k-fit').value = b.getAttribute('data-fit'); kExample = false;
+  var ok = applyFit(); saveForm(); renderKorekcja();
+  if (ok){ var m = $('#k-meas'); m.focus(); m.scrollIntoView({block:'center'}); } else $('#k-nom').focus();
+});
+
+/* ----- Ostatnie wymiary: jedno dotknięcie wraca do cechy z rysunku ----- */
+S.kfeat = store.get('kfeat', []);
+function featNow(){
+  return {kind:S.kind, wallDir:S.wallDir, nom:$('#k-nom').value.trim(), up:$('#k-up').value.trim(), lo:$('#k-lo').value.trim(), fit:$('#k-fit').value.trim(),
+    tool:$('#k-tool').value.trim(), cur:$('#k-cur').value.trim(), dia:$('#k-dia').checked, target:S.target, custom:$('#k-custom').value.trim(), m:S.machine};
+}
+function featKey(f){ return [f.m, f.kind, f.nom, f.up, f.lo, f.tool].join('|'); }
+function addFeat(f){
+  f = f || featNow(); if (!isFinite(parseNum(f.nom))) return;
+  var k = featKey(f);
+  S.kfeat = [f].concat(S.kfeat.filter(function(x){ return featKey(x) !== k; })).slice(0, 10);
+  store.set('kfeat', S.kfeat); renderQuick();
+}
+function featLabel(f){
+  var n = String(f.nom).replace('.', ','), tol = f.fit || ((f.up || '0') + ' / ' + (f.lo || '0')).replace(/\./g, ',');
+  return '<b>' + esc((KIND_UI[f.kind] ? KIND_UI[f.kind].short : '') + ' ' + ((f.kind === 'inner' || f.kind === 'outer') ? 'Ø' : '') + n + ' ' + tol) + '</b>' +
+    '<small>' + esc(f.tool || 'bez nr narzędzia') + '</small>';
+}
+function renderQuick(){
+  var list = S.kfeat.filter(function(f){ return f.m === S.machine; }).slice(0, 6), now = featKey(featNow());
+  $('#k-quick').hidden = !list.length;
+  $('#k-quick').innerHTML = list.length ? '<span class="lab">Ostatnie wymiary — dotknij i wpisz tylko pomiar</span><div class="cats">' +
+    list.map(function(f, i){ return '<button type="button" class="cat" data-feat="' + i + '" aria-pressed="' + (featKey(f) === now) + '">' + featLabel(f) + '</button>'; }).join('') + '</div>' : '';
+  renderQuick.list = list;
+}
+$('#k-quick').addEventListener('click', function(e){
+  var b = e.target.closest('[data-feat]'); if (!b) return;
+  var f = renderQuick.list[+b.getAttribute('data-feat')]; if (!f) return;
+  S.kind = KINDS[f.kind] ? f.kind : S.kind; store.set('kind', S.kind);
+  if (f.wallDir){ S.wallDir = f.wallDir; store.set('wallDir', S.wallDir); }
+  S.target = f.target || 'mid';
+  fillForm({'k-nom':f.nom, 'k-up':f.up, 'k-lo':f.lo, 'k-fit':f.fit, 'k-tool':f.tool, 'k-cur':f.cur, 'k-custom':f.custom, 'k-meas':''});
+  $('#k-dia').checked = !!f.dia; kExample = false;
+  renderKinds(); saveForm(); renderKorekcja();
+  var m = $('#k-meas'); m.focus(); m.scrollIntoView({block:'center'});
 });
 
 var lastK = null;
 function renderKorekcja(){
   var K = KINDS[S.kind], c = ctl(), isR = K.ax === 'R';
+  renderFitChips(); renderQuick();
   $('#wallWrap').hidden = S.kind !== 'wall';
   setPressed('#wallSeg', 'data-dir', S.wallDir);
   setPressed('#tgtSeg', 'data-t', S.target);
@@ -256,7 +334,8 @@ function renderKorekcja(){
   if (isFinite(nom)){
     var u = isFinite(up) ? up : 0, l = isFinite(lo) ? lo : 0;
     var mn = nom + Math.min(u, l), mx = nom + Math.max(u, l);
-    $('#tolsum').innerHTML = 'Dobry wymiar: <b>' + mn.toFixed(3) + '</b> do <b>' + mx.toFixed(3) + '</b>' + (mx > mn ? ' · środek <b>' + String(+((mn + mx) / 2).toFixed(4)) + '</b>' : '');
+    var fitN = !$('#fitWrap').hidden && parseFit($('#k-fit').value) ? parseFit($('#k-fit').value).name + ' · ' : '';
+    $('#tolsum').innerHTML = fitN + 'Dobry wymiar: <b>' + mn.toFixed(3) + '</b> do <b>' + mx.toFixed(3) + '</b>' + (mx > mn ? ' · środek <b>' + String(+((mn + mx) / 2).toFixed(4)) + '</b>' : '');
   } else $('#tolsum').textContent = 'Wpisz nominał, np. 20 dla Ø20. Puste odchyłki = 0.';
 
   var meas = parseNum($('#k-meas').value);
@@ -324,7 +403,7 @@ function renderKorekcja(){
   if (Math.abs(r.err) > 1) notes.push(['bad','Różnica ponad 1 mm. To raczej zły wymiar, złe narzędzie albo błąd odczytu, nie zużycie. Sprawdź przed zmianą.']);
   else if (Math.abs(delta) >= 0.1) notes.push(['warn','Duża korekta (0,1 mm lub więcej). Sprawdź pomiar, temperaturę detalu i stan narzędzia.']);
   if (r.status === 'ok' && !zero) notes.push(['','Pomiar mieści się w tolerancji. Korekta tylko przesunie wymiar bliżej celu — możesz ją pominąć.']);
-  if (multiAx()) notes.push(['', isR ? 'Obróbka 5-osiowa: jeśli program z CAM idzie po torze środka narzędzia (bez G41/G42), korekcja D nic nie zmieni — popraw w CAM albo w programie.' : 'Obróbka 5-osiowa: przy pochylonym narzędziu korekcja długości przesuwa narzędzie wzdłuż jego osi, a nie wzdłuż Z stołu.']);
+  if (multiAx()) notes.push(['', isR ? (MACHINES[S.machine].fiveAxis ? 'Obróbka 5-osiowa' : 'Obróbka z osią obrotową') + ': ' + 'jeśli program z CAM idzie po torze środka narzędzia (bez G41/G42), korekcja D nic nie zmieni — popraw w CAM albo w programie.' : (MACHINES[S.machine].fiveAxis ? 'Obróbka 5-osiowa' : 'Obróbka z osią obrotową') + ': ' + 'przy pochylonym narzędziu korekcja długości przesuwa narzędzie wzdłuż jego osi, a nie wzdłuż Z stołu.']);
   notes.push(['', isR ? 'Działa tylko, gdy kontur jest frezowany z G41/G42. Zmieni wszystkie kontury robione tym ' + (c === 'fanuc' ? 'numerem D' : 'ostrzem D') + '.' : 'Zmieni wszystkie głębokości robione tym narzędziem.']);
   if (isR && c === 'fanuc' && $('#k-dia').checked) notes.push(['warn','Liczone w średnicy (×2).']);
 
@@ -337,15 +416,34 @@ function renderKorekcja(){
     bar + (expl ? '<p class="explain">' + expl + '</p>' : '') +
     '<ul class="notes">' + notes.map(function(n){ return '<li class="' + n[0] + '">' + esc(n[1]) + '</li>'; }).join('') + '</ul>' +
     (zero ? '' : '<details class="more"' + (store.get('whereOpen', true) ? ' open' : '') + ' id="whereDet"><summary>Jak to wpisać na ' + (c === 'fanuc' ? (S.machine === 'matsuura' ? 'G-Tech 31i (Fanuc)' : 'Fanuc') : 'Sinumerik') + '</summary><div class="where">' + where + '</div></details>') +
-    '<div class="row"><button type="button" class="btn primary" id="saveLog">Zapisz w dzienniku</button>' +
-    (canShare() ? '<button type="button" class="btn" id="shareK">Udostępnij</button>' : '') + '</div>';
+    (zero ? '<div class="row"><button type="button" class="btn primary" id="saveLog">Zapisz w dzienniku</button>' +
+      (canShare() ? '<button type="button" class="btn" id="shareK">Udostępnij</button>' : '') + '</div>'
+    : '<div class="kdone"><button type="button" class="btn primary xl" id="kApplied"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>Wpisane — następny detal</button>' +
+      '<div class="row"><button type="button" class="btn" id="saveLog">Tylko zapisz</button>' + (canShare() ? '<button type="button" class="btn" id="shareK">Udostępnij</button>' : '') + '</div>' +
+      '<p class="fine">Zapisze w dzienniku' + (r.newWear != null ? ', ustawi obecne zużycie na <b class="mono">' + f3(r.newWear) + '</b>' : '') + ' i wyczyści pomiar.</p></div>') +
+    (!zero && S.kind !== 'wall' ? '<button type="button" class="tlink" id="kToProg">' + (isR ? 'Kontur bez G41/G42? Zmień ten wymiar w programie' : 'Wolisz poprawić Z w programie? Przesuń Z o ' + f3(delta, true)) + '</button>' : '');
 
   $('#copyDelta').onclick = function(){ copyText(f3(delta)); };
   if ($('#whereDet')) $('#whereDet').addEventListener('toggle', function(){ store.set('whereOpen', this.open); });
-  $('#saveLog').onclick = function(){
+  function logIt(){
     S.log.unshift({t:new Date().toISOString(), m:S.machine, c:c, tool:tool, kind:S.kind, ax:r.ax, delta:delta, nw:r.newWear, meas:meas, tgt:r.target, st:r.status});
-    S.log = S.log.slice(0, 50); store.set('log', S.log); renderLog(); toast('Zapisano w dzienniku');
+    S.log = S.log.slice(0, 50); store.set('log', S.log); renderLog();
+  }
+  $('#saveLog').onclick = function(){ logIt(); addFeat(); toast('Zapisano w dzienniku'); };
+  if ($('#kApplied')) $('#kApplied').onclick = function(){
+    var before = featNow(), beforeMeas = $('#k-meas').value, beforeFeat = S.kfeat.slice();
+    logIt();
+    if (r.newWear != null) $('#k-cur').value = f3(r.newWear);
+    $('#k-meas').value = '';
+    addFeat(); saveForm(); renderKorekcja();
+    var m = $('#k-meas'); m.focus(); m.scrollIntoView({block:'center'});
+    toastUndo(r.newWear != null ? 'Obecne zużycie: ' + f3(r.newWear) + '. Wpisz pomiar' : 'Zapisano. Wpisz pomiar', function(){
+      S.log.shift(); store.set('log', S.log); renderLog();
+      S.kfeat = beforeFeat; store.set('kfeat', S.kfeat);
+      $('#k-cur').value = before.cur; $('#k-meas').value = beforeMeas; saveForm(); renderKorekcja();
+    });
   };
+  if ($('#kToProg')) $('#kToProg').onclick = function(){ progFromKor(r, meas); };
   if (canShare()) $('#shareK').onclick = function(){
     shareText('Korekta', MACHINES[S.machine].name + (tool ? ' · ' + tool : '') + '\n' + KINDS[S.kind].label + ': pomiar ' + f3(meas) + ', cel ' + tgtStr + '\n' + label + ': ' + f3(delta, true) + (r.newWear != null ? ' → ' + f3(r.newWear) : ''));
   };
@@ -502,7 +600,8 @@ function runG(){
   var html = '<div class="ghead"><span class="lab">' + esc(opDesc) + (S.gEdited ? '' : '<span class="ex">przykład</span>') + '</span></div>' +
     '<div class="chips">' +
     (r.changes.length ? '<span class="chip ok">Zmienione linie: ' + r.changes.length + '</span>' : '<span class="chip neutral">Brak zmian</span>') +
-    (r.warnings.length ? '<span class="chip warn">Do sprawdzenia: ' + r.warnings.length + '</span>' : (r.changes.length ? '<span class="chip ok">Bez ostrzeżeń</span>' : '')) + '</div>';
+    (r.warnings.length ? '<span class="chip warn">Do sprawdzenia: ' + r.warnings.length + '</span>' : (r.changes.length ? '<span class="chip ok">Bez ostrzeżeń</span>' : '')) +
+    (r.changes.length ? '<button type="button" class="chip neutral" id="g-pfchip">Kontrola…</button>' : '') + '</div>';
   if (!r.changes.length){
     html += '<p class="empty">' + (o.mode === 'replace' ? 'Nie znaleziono ' + esc(o.axis) + ' równego ' + esc(String(o.oldVal)) + ' w tym zakresie. Sprawdź oś i wartość.' : 'Żadna wartość ' + esc(o.axis) + ' nie zmieniła się. Sprawdź oś, środek i zakres linii.') + '</p>';
   }
@@ -603,49 +702,121 @@ function renderAlarmHelp(){
   $('#a-help').innerHTML = '<span class="connname">' + h.title + '</span><p class="fine" style="font-size:14.5px">' + h.text + '</p>' +
     (h.link ? '<a class="lnk" href="' + h.link + '" target="_blank" rel="noopener">' + h.linkText + '</a>' : '');
 }
+/* Karty alarmów — te same na ekranie Alarmy i w wyszukiwarce na Start */
+function alarmStdCard(a, c, hit){
+  return '<li class="arow' + (hit ? ' ahit' : '') + '"><div class="ahead"><span class="acode">' + esc(a[0]) + '</span><span class="aen">' + esc(a[1]) + '</span></div>' +
+    '<p>' + esc(a[2]) + '</p><p class="chk"><b>Sprawdź:</b> ' + esc(a[3]) + '</p>' +
+    '<div class="row" style="gap:16px">' + (c === 'sinumerik' && /^\d+$/.test(a[0]) ? '<a class="tlink" data-alink="' + esc(a[0]) + '" href="' + ALARM_LOOKUP.sinumerik(a[0]) + '" target="_blank" rel="noopener">Pełny opis (ang.)</a>'
+      : c === 'fanuc' && /^PS\d{4}$/.test(a[0]) ? '<a class="tlink" data-alink="' + esc(a[0]) + '" href="' + ALARM_LOOKUP.fanuc(+a[0].slice(2)) + '" target="_blank" rel="noopener">Pełny opis (ang.)</a>' : '') +
+    '<button type="button" class="tlink" data-askalarm="' + esc(a[0]) + '">Zapytaj AI</button></div></li>';
+}
+function alarmMachCard(a, M, hit){
+  return '<li class="arow' + (hit ? ' ahit' : '') + '"><div class="ahead"><span class="acode">' + esc(a[0]) + '</span>' + (hit ? '<span class="aen">alarm maszyny</span>' : '') + '</div><p>' + esc(a[1]) + '</p>' +
+    '<div class="row" style="gap:16px"><a class="tlink" data-alink="' + esc(a[0]) + '" href="' + M.url + encodeURIComponent(a[0]) + '" target="_blank" rel="noopener">Przyczyna i kroki naprawy (ang.)</a>' +
+    '<button type="button" class="tlink" data-askalarm="' + esc(a[0]) + '">Zapytaj AI</button></div></li>';
+}
+/* Numer spoza listy: od razu linki do opisu i AI */
+function alarmLookupCard(raw, c){
+  var k = alarmKey(raw); if (!k || k.n.length < 3 || k.n.length > 6) return '';
+  var num = k.n, links = [];
+  if (c === 'sinumerik'){
+    if (+num >= 500000 && S.machine === 'chiron') links.push(['Opis alarmu ' + num + ' — maszyna Chiron', ALARM_LOOKUP.chiron(num)]);
+    else links.push(['Opis alarmu ' + num + ' — Sinumerik 840D', ALARM_LOOKUP.sinumerik(num)]);
+  } else if (+num < 10000){
+    links.push(['Opis alarmu ' + (k.p || 'PS') + ('0000' + num).slice(-4) + ' — Fanuc (seria 0i-D, numeracja jak w 31i)', ALARM_LOOKUP.fanuc(num)]);
+    links.push(['Cała lista alarmów Fanuc 0i-D', ALARM_LOOKUP.fanucList]);
+  }
+  return '<li class="arow ahit"><div class="ahead"><span class="acode">' + esc((k.p || '') + num) + '</span><span class="aen">spoza listy w aplikacji</span></div>' +
+    links.map(function(l){ return '<a class="tlink" data-alink="' + esc(num) + '" href="' + l[1] + '" target="_blank" rel="noopener">' + esc(l[0]) + ' (ang.)</a>'; }).join('') +
+    '<button type="button" class="tlink" data-askalarm="' + esc(num) + '">Zapytaj AI o ten alarm</button>' +
+    '<p class="fine">Na sterowaniu: ' + (c === 'fanuc' ? '<b>HELP</b> → <b>ALARM</b>' : '<b>Diagnostyka</b> → <b>Alarmy</b> → <b>Pomoc</b>') + '. Indeks faultresolve.com jest nieoficjalny — porównaj z tekstem na ekranie.</p></li>';
+}
+/* Szuka w alarmach sterowania i maszyny. Najpierw ten sam numer, potem numery od tych cyfr, potem tekst. */
+function findAlarms(raw, c){
+  var q = norm(String(raw || '').trim()), M = MACHINE_ALARMS[S.machine];
+  function score(code, text){
+    if (!q) return 2;
+    var s = alarmNumScore(code, raw);
+    return s >= 0 ? s : norm(code + ' ' + text).indexOf(q) >= 0 ? 2 : -1;
+  }
+  function pick(list, txt){
+    return list.map(function(a, i){ return {a:a, s:score(a[0], txt(a)), i:i}; })
+      .filter(function(x){ return x.s >= 0; })
+      .sort(function(x, y){ return x.s - y.s || x.i - y.i; });
+  }
+  var std = pick(ALARMS[c] || [], function(a){ return a.slice(1).join(' '); });
+  var mach = M && M.ctl === c ? pick(M.list, function(a){ return a[1]; }) : [];
+  var exact = std.some(function(x){ return x.s === 0; }) || mach.some(function(x){ return x.s === 0; });
+  return {std:std, mach:mach, M:M && M.ctl === c ? M : null, exact:exact};
+}
+
+/* Ostatnio sprawdzane alarmy (na tej maszynie) */
+S.recentA = store.get('recentA', []);
+function recentAlarms(){ var c = ctl(); return S.recentA.filter(function(r){ return r.m === S.machine && r.c === c; }).map(function(r){ return r.code; }); }
+function recordAlarm(code){
+  code = String(code || '').trim(); if (!code) return;
+  var c = ctl();
+  S.recentA = [{m:S.machine, c:c, code:code}].concat(S.recentA.filter(function(r){ return !(r.m === S.machine && r.c === c && r.code === code); })).slice(0, 24);
+  store.set('recentA', S.recentA);
+}
+function recentChips(attr){
+  var list = recentAlarms().slice(0, 6);
+  return list.length ? '<span class="lab">Ostatnio sprawdzane</span><div class="cats">' + list.map(function(code){ return '<button type="button" class="cat mono" ' + attr + '="' + esc(code) + '">' + esc(code) + '</button>'; }).join('') + '</div>' : '';
+}
+var aRecTimer = null;
+function rememberHitSoon(code){ clearTimeout(aRecTimer); if (code) aRecTimer = setTimeout(function(){ recordAlarm(code); }, 1500); }
+
 function renderAlarms(){
   renderAlarmHelp();
-  var q = norm($('#a-q').value.trim()), list = ALARMS[S.alarmCtl] || [];
-  var rows = list.filter(function(a){ return !q || norm(a.join(' ')).indexOf(q) >= 0; });
-  var html = rows.map(function(a){
-    return '<li class="arow"><div class="ahead"><span class="acode">' + esc(a[0]) + '</span><span class="aen">' + esc(a[1]) + '</span></div>' +
-      '<p>' + esc(a[2]) + '</p><p class="chk"><b>Sprawdź:</b> ' + esc(a[3]) + '</p>' +
-      '<div class="row" style="gap:16px">' + (S.alarmCtl === 'sinumerik' && /^\d+$/.test(a[0]) ? '<a class="tlink" href="' + ALARM_LOOKUP.sinumerik(a[0]) + '" target="_blank" rel="noopener">Pełny opis (ang.)</a>' : '') +
-      '<button type="button" class="tlink" data-askalarm="' + esc(a[0]) + '">Zapytaj AI</button></div></li>';
-  }).join('');
-  var M = MACHINE_ALARMS[S.machine], mrows = [];
-  if (M && M.ctl === S.alarmCtl){
-    mrows = M.list.filter(function(a){ return !q || norm(a[0] + ' ' + a[1]).indexOf(q) >= 0; });
-    if (mrows.length){
-      html += '<li class="agroup"><b>' + esc(M.title) + '</b><span>' + (q ? 'wyniki: ' + mrows.length : mrows.length + ' z ' + (M.total || mrows.length) + ' · pozostałe znajdziesz, wpisując numer') + '</span></li>' +
-        mrows.map(function(a){
-          return '<li class="arow"><div class="ahead"><span class="acode">' + esc(a[0]) + '</span></div><p>' + esc(a[1]) + '</p>' +
-            '<div class="row" style="gap:16px"><a class="tlink" href="' + M.url + encodeURIComponent(a[0]) + '" target="_blank" rel="noopener">Przyczyna i kroki naprawy (ang.)</a>' +
-            '<button type="button" class="tlink" data-askalarm="' + esc(a[0]) + '">Zapytaj AI</button></div></li>';
-        }).join('') +
-        '<li class="arow"><p class="fine">' + esc(M.src) + '</p></li>';
+  var raw = $('#a-q').value.trim(), c = S.alarmCtl, F = findAlarms(raw, c);
+  var rec = raw ? '' : recentChips('data-arecent');
+  $('#a-recent').innerHTML = rec; $('#a-recent').hidden = !rec;
+  var top = '', html = '', hitCode = '';
+  F.std.forEach(function(x){
+    if (raw && x.s === 0){ top += alarmStdCard(x.a, c, true); hitCode = hitCode || x.a[0]; }
+    else html += alarmStdCard(x.a, c);
+  });
+  var M = F.M;
+  if (M){
+    var rest = [];
+    F.mach.forEach(function(x){
+      if (raw && x.s === 0){ top += alarmMachCard(x.a, M, true); hitCode = hitCode || x.a[0]; }
+      else rest.push(x);
+    });
+    if (rest.length){
+      html += '<li class="agroup"><b>' + esc(M.title) + '</b><span>' + (raw ? 'wyniki: ' + rest.length : rest.length + ' z ' + (M.total || rest.length) + ' · pozostałe znajdziesz, wpisując numer') + '</span></li>' +
+        rest.map(function(x){ return alarmMachCard(x.a, M); }).join('');
     }
+    if (rest.length || top) html += '<li class="arow"><p class="fine">' + esc(M.src) + '</p></li>';
   }
-  // Numer spoza listy: link do opisu w indeksie alarmów
-  var raw = $('#a-q').value.trim().toUpperCase().replace(/\s+/g, ''), look = '';
-  var mnum = raw.match(/^(?:PS|BG|SR)?0*(\d{1,6})$/);
-  if (mnum && !rows.some(function(a){ return norm(a[0]).indexOf(norm(raw)) >= 0; }) && !mrows.length){
-    var num = mnum[1], links = [];
-    if (S.alarmCtl === 'sinumerik'){
-      if (+num >= 500000 && S.machine === 'chiron') links.push(['Opis alarmu ' + num + ' — maszyna Chiron', ALARM_LOOKUP.chiron(num)]);
-      else links.push(['Opis alarmu ' + num + ' — Sinumerik 840D', ALARM_LOOKUP.sinumerik(num)]);
-    } else if (+num < 10000){
-      links.push(['Opis alarmu PS' + ('0000' + num).slice(-4) + ' — Fanuc (seria 0i-D, numeracja jak w 31i)', ALARM_LOOKUP.fanuc(num)]);
-      links.push(['Cała lista alarmów Fanuc 0i-D', ALARM_LOOKUP.fanucList]);
-    }
-    look = '<li class="arow"><div class="ahead"><span class="acode">' + esc(num) + '</span><span class="aen">spoza listy w aplikacji</span></div>' +
-      links.map(function(l){ return '<a class="tlink" href="' + l[1] + '" target="_blank" rel="noopener">' + esc(l[0]) + ' (ang.)</a>'; }).join('') +
-      '<button type="button" class="tlink" data-askalarm="' + esc(num) + '">Zapytaj AI o ten alarm</button>' +
-      '<p class="fine">Indeks faultresolve.com (nieoficjalny). Porównaj z tekstem na ekranie maszyny.</p></li>';
-  }
-  $('#a-list').innerHTML = look + html || '<li class="arow"><p class="chk">Brak tego alarmu na liście. Sprawdź w diagnostyce sterowania (' + (S.alarmCtl === 'fanuc' ? 'HELP → ALARM' : 'Diagnostyka → Alarmy') + ') albo zapytaj AI.</p></li>';
+  var look = raw && !F.exact ? alarmLookupCard(raw, c) : '';
+  if (look && !html) hitCode = alarmKey(raw).n;
+  rememberHitSoon(top || look ? hitCode : '');
+  $('#a-list').innerHTML = top + look + html || '<li class="arow"><p class="chk">Brak tego alarmu na liście. Sprawdź w diagnostyce sterowania (' + (c === 'fanuc' ? 'HELP → ALARM' : 'Diagnostyka → Alarmy') + ') albo zapytaj AI.</p></li>';
 }
 $('#a-q').addEventListener('input', renderAlarms);
+$('#a-recent').addEventListener('click', function(e){
+  var b = e.target.closest('[data-arecent]'); if (!b) return;
+  $('#a-q').value = b.getAttribute('data-arecent'); renderAlarms();
+});
+document.addEventListener('click', function(e){
+  var l = e.target.closest('[data-alink]'); if (l) recordAlarm(l.getAttribute('data-alink'));
+  var a = e.target.closest('[data-askalarm]'); if (a) recordAlarm(a.getAttribute('data-askalarm'));
+}, true);
+/* Klawiatura: cyfry (numer z ekranu) albo litery (szukanie słowem) */
+function setAlarmKb(letters){
+  var q = $('#a-q');
+  q.setAttribute('inputmode', letters ? 'search' : 'numeric');
+  q.placeholder = letters ? 'Słowo, np. krańcówka, overtravel' : 'Numer z ekranu, np. 41 albo 10720';
+  $('#a-kb').textContent = letters ? '123' : 'ABC';
+  $('#a-kb').setAttribute('aria-label', letters ? 'Klawiatura z cyframi' : 'Klawiatura z literami');
+  store.set('akb', letters);
+}
+setAlarmKb(store.get('akb', false));
+$('#a-kb').addEventListener('click', function(){
+  setAlarmKb($('#a-q').getAttribute('inputmode') === 'numeric');
+  var q = $('#a-q'); q.blur(); setTimeout(function(){ q.focus(); }, 30);
+});
 
 /* ===== Zakładki ===== */
 var TABS = ['start','korekcja','gcode','nowy','ai','wiedza','guide'];
@@ -682,6 +853,7 @@ function renderStart(){
     }).join('');
     return;
   }
+  renderStartRecentA();
   var rec = S.log.slice(0, 3);
   $('#st-recent').hidden = !rec.length;
   $('#st-recentList').innerHTML = rec.map(function(e){
@@ -697,13 +869,18 @@ $('#st-machines').addEventListener('click', function(e){
 });
 document.addEventListener('click', function(e){
   var b = e.target.closest('[data-go]'); if (!b) return;
-  showTab(b.getAttribute('data-go')); window.scrollTo(0, 0);
+  var go = b.getAttribute('data-go');
+  if (go === 'check'){ store.set('ptab', 'gcode'); showTab('gcode'); renderPF(); setTimeout(function(){ $('#pf').scrollIntoView({block:'start'}); }, 30); return; }
+  showTab(go); window.scrollTo(0, 0);
+  /* Alarm z ekranu Start: od razu klawiatura do wpisania numeru */
+  if (go === 'alarmy'){ var q = $('#a-q'); q.value = ''; renderAlarms(); q.focus(); }
 });
 $('#st-help').addEventListener('click', function(){ openSheet('#help'); });
 
 /* ===== Start ===== */
 applyTheme();
 renderKinds();
+renderFitChips(); applyFit();
 renderCats();
 $('#g-prog').value = sampleProg();
 showGFields();

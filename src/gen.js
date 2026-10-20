@@ -134,7 +134,7 @@ function renderHead(){
   $('#n-head').innerHTML =
     '<div class="field full"><label class="lab" for="n-name">Nazwa / numer rysunku</label><div class="num"><input id="n-name" class="txt" data-g="name" autocomplete="off" value="' + esc(GEN.name) + '" placeholder="np. PLYTA-12"></div></div>' +
     (F ? '<div class="field"><label class="lab" for="n-num">Numer programu O</label><div class="num"><input id="n-num" data-g="num" inputmode="numeric" autocomplete="off" value="' + esc(GEN.num) + '"></div></div>' : '') +
-    '<div class="field' + (F ? '' : ' full') + '"><label class="lab" for="n-mat">Materiał</label><select id="n-mat" class="sel" data-g="mat">' + mats.map(function(m){ return '<option value="' + m + '"' + (GEN.mat === m ? ' selected' : '') + '>' + esc(MATERIALS[m].name) + '</option>'; }).join('') + '</select></div>' +
+    (F ? '' : '') +
     '<div class="field full"><label class="lab" for="n-datum">Baza G54 (gdzie X0 Y0 Z0)</label><div class="num"><input id="n-datum" class="txt" data-g="datum" autocomplete="off" value="' + esc(GEN.datum) + '"></div></div>' +
     '<div class="field"><label class="lab" for="n-safe">Wysokość bezpieczna Z</label><div class="num"><input id="n-safe" data-g="safe" inputmode="decimal" autocomplete="off" value="' + esc(GEN.safe) + '"></div><span class="hint">nad imadłem i łapami</span></div>' +
     '<div class="field"><label class="lab" for="n-rd">Odstęp nad materiałem</label><div class="num"><input id="n-rd" data-g="rdist" inputmode="decimal" autocomplete="off" value="' + esc(GEN.rdist) + '"></div><span class="hint">płaszczyzna R, mm</span></div>' +
@@ -182,7 +182,7 @@ function renderGen(){
   if (face){ stk.top = parseNum(face.top) || 0; stk.x0 = Math.min(parseNum(face.x0), parseNum(face.x1)); stk.x1 = Math.max(parseNum(face.x0), parseNum(face.x1)); stk.y0 = Math.min(parseNum(face.y0), parseNum(face.y1)); stk.y1 = Math.max(parseNum(face.y0), parseNum(face.y1)); }
   else if (sx > 0 && sy > 0){ stk.x0 = 0; stk.y0 = 0; stk.x1 = sx; stk.y1 = sy; }
   if (sz > 0) stk.bot = -sz;
-  genView.set(r.text, ctl(), null, {stock:stk});
+  genView.set(r.text, ctl(), null, {stock:stk, ops:GEN.ops.map(opTitle)});
 }
 function toolName(op){
   var d = fmtV(op.d);
@@ -317,11 +317,11 @@ function featuresToOps(fe){
   (fe.features || []).forEach(function(f){
     var t = String(f.type || '').toLowerCase();
     if (t === 'face'){
-      add(0, mk('face', {x0:String(num(f.x0, 0)), y0:String(num(f.y0, 0)), x1:String(num(f.x1, X)), y1:String(num(f.y1, Y)), T:T('face50')}));
+      add(0, mk('face', {x0:String(num(f.x0, 0)), y0:String(num(f.y0, 0)), x1:String(num(f.x1, X)), y1:String(num(f.y1, Y)), top:String(num(f.top, 1)), T:T('face50')}));
     } else if (t === 'pocket' || t === 'boss'){
       var circ = f.shape === 'circle', w = num(f.w, 0), h = num(f.h, 0), D = num(f.d, num(f.D, 0)), r = Math.max(0, num(f.r, 0));
       var d = t === 'pocket' ? (circ ? pickMill(D * 0.6) : pickMill(Math.min(w, h) * 0.6, r)) : 12;
-      add(t === 'boss' ? 1 : 2, mk(t, {shape:circ ? 'circle' : 'rect', cx:String(num(f.cx, 0)), cy:String(num(f.cy, 0)), w:String(w), h:String(h), r:String(r), D:String(D), depth:String(num(f.depth, 5)), d:String(d), T:T('mill' + d)}));
+      add(t === 'boss' ? 1 : 2, mk(t, {shape:circ ? 'circle' : 'rect', cx:String(num(f.cx, 0)), cy:String(num(f.cy, 0)), w:String(w), h:String(h), r:String(r), D:String(D), depth:String(num(f.depth, 5)), stock:String(num(f.stock, 2)), d:String(d), T:T('mill' + d)}));
     } else if (t === 'hole' || t === 'holes'){
       var pts = (f.pts || []).filter(function(p){ return p && isFinite(+p[0]) && isFinite(+p[1]); }).map(function(p){ return r3(+p[0]) + ' ' + r3(+p[1]); }).join('\n');
       if (!pts) return;
@@ -366,18 +366,20 @@ function genImport(fe){
   if (fe.stock){ GEN.sx = String(num(fe.stock.x, '')); GEN.sy = String(num(fe.stock.y, '')); GEN.sz = String(num(fe.stock.z, '')); }
   GEN.ops = ops; genOpen = -1;
   ops.forEach(autoCut);
-  showTab('nowy'); window.scrollTo(0, 0);
-  renderHead(); renderOps(); renderGen();
+  GEN.feats = (fe.features || []).map(normFeat).filter(Boolean); modelEnsureFace(); GEN.mode = 'model'; GEN.mex = false; MD.sel = null; MD.tool = 'sel';
+  showTab('nowy');
+  renderHead(); renderOps(); renderStock(); renderModel(); renderInsp(); renderOpSum(); renderGen();
+  setTimeout(function(){ $('#n-mstep').scrollIntoView({behavior:'smooth', block:'start'}); }, 60);
   var un = (fe.unsure || []).filter(Boolean), no = (fe.notes || []).filter(Boolean);
   $('#n-aiout').innerHTML = '<div class="result aires"><div class="connrow"><span class="chip ' + (ops.length ? 'ok' : 'warn') + '">' + (ops.length ? 'Odczytano' : 'Brak operacji') + '</span><span>' + ops.length + ' ' + (ops.length === 1 ? 'operacja' : ops.length < 5 ? 'operacje' : 'operacji') + ' z rysunku</span></div>' +
     (un.length ? '<span class="lab">Sprawdź na rysunku</span><ul class="notes">' + un.map(function(u){ return '<li class="warn">' + esc(u) + '</li>'; }).join('') + '</ul>' : '') +
     (no.length ? '<span class="lab">Uwagi AI</span><ul class="notes">' + no.map(function(u){ return '<li>' + esc(u) + '</li>'; }).join('') + '</ul>' : '') +
     '<p class="fine">AI może pomylić wymiar. Porównaj każdą operację z rysunkiem, zanim użyjesz programu.</p>' +
     (GEN_UNDO.ops.length ? '<button type="button" class="tlink" id="n-undo">Przywróć poprzednie operacje</button>' : '') + '</div>';
-  toast(ops.length ? 'Operacje z rysunku są w formularzu' : 'AI nie znalazło operacji do wykonania od góry');
+  toast(ops.length ? 'Model gotowy — dotknij elementów, żeby je sprawdzić' : 'AI nie znalazło elementów do obróbki od góry');
 }
 $('#n-aiout').addEventListener('click', function(e){
-  if (e.target.id === 'n-undo' && GEN_UNDO){ GEN = GEN_UNDO; GEN_UNDO = null; renderHead(); renderOps(); renderGen(); $('#n-aiout').innerHTML = ''; toast('Przywrócono'); }
+  if (e.target.id === 'n-undo' && GEN_UNDO){ GEN = GEN_UNDO; GEN_UNDO = null; modelInit(); MD.sel = null; renderHead(); renderOps(); renderStock(); renderModel(); renderInsp(); renderOpSum(); renderGen(); $('#n-aiout').innerHTML = ''; toast('Przywrócono'); }
 });
 
 function renderGenFiles(){
@@ -392,7 +394,7 @@ function addGenFiles(files){
   var list = Array.prototype.slice.call(files || []).filter(function(f){ return /^image\//.test(f.type) || f.type === 'application/pdf'; });
   list = list.filter(function(f){ if (f.size > 15e6){ toast('Plik większy niż 15 MB — pomijam'); return false; } return true; });
   list.slice(0, 4 - GEN_FILES.length).forEach(function(f){ GEN_FILES.push({file:f, pdf:f.type === 'application/pdf', url:f.type === 'application/pdf' ? '' : URL.createObjectURL(f)}); });
-  renderGenFiles();
+  renderGenFiles(); renderModel();
 }
 ['#n-cam', '#n-file'].forEach(function(id){ $(id).addEventListener('change', function(){ addGenFiles(this.files); this.value = ''; }); });
 $('#n-thumbs').addEventListener('click', function(e){
@@ -437,13 +439,491 @@ document.addEventListener('click', function(e){
   var b = e.target.closest('[data-ptab]'); if (!b) return;
   var t = b.getAttribute('data-ptab'); store.set('ptab', t); showTab(t); window.scrollTo(0, 0);
 });
+/* ===== Model detalu: widok z góry jak szkic w CAD. Elementy = to samo, co AI odczytuje z rysunku.
+   Włączone elementy (on) zamieniam na operacje generatorem (featuresToOps) — narzędzia, kolejność, S i F dobierają się same. ===== */
+var MD = {tool:'sel', sel:null, act:null, pv:null, cur:null, view:null};
+var FT_NAMES = {face:'Planowanie góry', pocket:'Kieszeń', boss:'Kontur zewnętrzny', hole:'Otwory'};
+var HK_NAMES = {drill:'Wiercenie', tap:'Gwint', ream:'Rozwiercanie'};
+function fid(){ return 'f' + Math.random().toString(36).slice(2, 9); }
+function stX(){ return num(GEN.sx, 100) > 0 ? num(GEN.sx, 100) : 100; }
+function stY(){ return num(GEN.sy, 60) > 0 ? num(GEN.sy, 60) : 60; }
+function stZ(){ return num(GEN.sz, NaN); }
+function snap(v){ return r3(Math.round(v * 2) / 2); }
+function normFeat(f){
+  if (!f) return null;
+  var t = String(f.type || '').toLowerCase(); if (t === 'holes') t = 'hole';
+  if (!FT_NAMES[t]) return null;
+  var o = {id:f.id || fid(), type:t, on:f.on !== false};
+  if (t === 'face') o.top = num(f.top, 1);
+  if (t === 'pocket' || t === 'boss'){
+    o.shape = f.shape === 'circle' ? 'circle' : 'rect';
+    o.cx = num(f.cx, 0); o.cy = num(f.cy, 0); o.w = Math.abs(num(f.w, 0)); o.h = Math.abs(num(f.h, 0)); o.r = Math.max(0, num(f.r, 0)); o.d = Math.abs(num(f.d, num(f.D, 0))); o.depth = num(f.depth, 5);
+    if (t === 'boss') o.stock = num(f.stock, 2);
+    if (o.shape === 'rect' && !(o.w > 0 && o.h > 0)) return null;
+    if (o.shape === 'circle' && !(o.d > 0)) return null;
+  }
+  if (t === 'hole'){
+    o.kind = f.kind === 'tap' || f.kind === 'ream' ? f.kind : 'drill';
+    o.d = num(f.d, 8.5); o.thread = String(f.thread || ''); o.depth = num(f.depth, 10); o.through = !!f.through;
+    o.pts = (f.pts || []).filter(function(p){ return p && isFinite(+p[0]) && isFinite(+p[1]); }).map(function(p){ return [r3(+p[0]), r3(+p[1])]; });
+    if (!o.pts.length) return null;
+    if (o.kind === 'tap' && !tapInfo(o.thread)) o.thread = 'M' + (o.d > 0 ? Math.round(o.d) : 8);
+  }
+  return o;
+}
+/* Operacje dodane wcześniej ręcznie → elementy modelu (nawiercanie i wiercenie pod gwint / rozwiertak znikają, bo generator doda je sam) */
+function opsToFeatures(ops){
+  var own = {}, out = [];
+  function key(p){ return p[0] + ',' + p[1]; }
+  ops.forEach(function(op){ if (op.type === 'holes' && (op.kind === 'tap' || op.kind === 'ream')) holePattern(holePat(op)).forEach(function(p){ own[key(p)] = 1; }); });
+  ops.forEach(function(op){
+    if (op.type === 'face') out.push({type:'face', top:op.top});
+    else if (op.type === 'pocket' || op.type === 'boss') out.push({type:op.type, shape:op.shape, cx:op.cx, cy:op.cy, w:op.w, h:op.h, r:op.r, d:op.D, depth:op.depth, stock:op.stock});
+    else if (op.type === 'holes' && op.kind !== 'spot'){
+      var pts = holePattern(holePat(op));
+      if (op.kind === 'drill' || op.kind === 'peck') pts = pts.filter(function(p){ return !own[key(p)]; });
+      if (pts.length) out.push({type:'hole', kind:op.kind === 'peck' ? 'drill' : op.kind, d:op.d, thread:op.thread, depth:op.depth, through:op.through, pts:pts});
+    }
+  });
+  return out.map(normFeat).filter(Boolean);
+}
+function modelExample(){
+  return [
+    {type:'face', top:1, on:true},
+    {type:'pocket', shape:'rect', cx:50, cy:30, w:40, h:20, r:5, depth:6},
+    {type:'hole', kind:'tap', thread:'M6', d:6, depth:12, pts:[[10, 10], [90, 10], [10, 50], [90, 50]]},
+    {type:'hole', kind:'ream', d:10, depth:20, through:true, pts:[[80, 30]], on:false}
+  ].map(normFeat);
+}
+function modelEnsureFace(){ if (!GEN.feats.some(function(f){ return f.type === 'face'; })) GEN.feats.unshift(normFeat({type:'face', top:1, on:false})); }
+function modelInit(){
+  if (!Array.isArray(GEN.feats)){
+    if (GEN.ops && GEN.ops.length){ GEN.feats = opsToFeatures(GEN.ops); GEN.mode = 'model'; }
+    else { GEN.feats = modelExample(); GEN.sx = GEN.sx || '100'; GEN.sy = GEN.sy || '60'; GEN.sz = GEN.sz || '20'; GEN.mex = true; GEN.mode = 'model'; GEN.ops = featuresToOps(modelSpec()); }
+  }
+  GEN.feats = GEN.feats.map(normFeat).filter(Boolean);
+  modelEnsureFace();
+  if (!GEN.mode) GEN.mode = 'model';
+}
+function modelSpec(){ return {stock:{x:stX(), y:stY(), z:stZ()}, features:GEN.feats.filter(function(f){ return f.on; })}; }
+var mRegenT = null;
+function modelChanged(now){
+  if (GEN.mex){ GEN.mex = false; }
+  clearTimeout(mRegenT);
+  var run = function(){
+    if (GEN.mode === 'model'){ GEN.ops = featuresToOps(modelSpec()); genOpen = -1; renderOps(); }
+    renderOpSum(); genSoon();
+  };
+  if (now) run(); else mRegenT = setTimeout(run, 300);
+  genSave(); renderModel();
+}
+function featById(id){ for (var i = 0; i < GEN.feats.length; i++) if (GEN.feats[i].id === id) return GEN.feats[i]; return null; }
+function fBox(f){
+  if (f.type === 'face') return null;
+  if (f.type === 'hole'){ var r = (f.kind === 'tap' && tapInfo(f.thread) ? tapInfo(f.thread).d : f.d) / 2 || 2, b = [Infinity, Infinity, -Infinity, -Infinity];
+    f.pts.forEach(function(p){ b[0] = Math.min(b[0], p[0] - r); b[1] = Math.min(b[1], p[1] - r); b[2] = Math.max(b[2], p[0] + r); b[3] = Math.max(b[3], p[1] + r); }); return b; }
+  if (f.shape === 'circle') return [f.cx - f.d / 2, f.cy - f.d / 2, f.cx + f.d / 2, f.cy + f.d / 2];
+  return [f.cx - f.w / 2, f.cy - f.h / 2, f.cx + f.w / 2, f.cy + f.h / 2];
+}
+function fDims(f){
+  var n = function(v){ return String(r3(v)).replace('.', ','); };
+  if (f.type === 'face') return 'naddatek ' + n(f.top) + ' mm';
+  if (f.type === 'hole'){
+    var ti = f.kind === 'tap' ? tapInfo(f.thread) : null;
+    return (ti ? ti.name : (f.kind === 'ream' ? 'Ø' + n(f.d) + ' H7' : 'Ø' + n(f.d))) + ' × ' + f.pts.length + ' · ' + (f.through ? 'przelotowe' : 'gł. ' + n(f.depth));
+  }
+  return (f.shape === 'circle' ? 'Ø' + n(f.d) : n(f.w) + ' × ' + n(f.h) + (f.r ? ' R' + n(f.r) : '')) + ' · gł. ' + n(f.depth);
+}
+function fName(f){ return f.type === 'hole' ? HK_NAMES[f.kind] || 'Otwory' : f.type === 'pocket' && f.shape === 'circle' ? 'Kieszeń okrągła' : FT_NAMES[f.type]; }
+
+/* ----- Rysowanie ----- */
+function renderModel(){
+  var svg = $('#n-svg'); if (!svg) return;
+  var X = stX(), Y = stY(), b = [0, 0, X, Y];
+  GEN.feats.forEach(function(f){ var q = fBox(f); if (q){ b[0] = Math.min(b[0], q[0]); b[1] = Math.min(b[1], q[1]); b[2] = Math.max(b[2], q[2]); b[3] = Math.max(b[3], q[3]); } });
+  if (MD.pv){ var pq = MD.pv.box; b[0] = Math.min(b[0], pq[0]); b[1] = Math.min(b[1], pq[1]); b[2] = Math.max(b[2], pq[2]); b[3] = Math.max(b[3], pq[3]); }
+  var bw = Math.max(b[2] - b[0], 1), bh = Math.max(b[3] - b[1], 1), W = 340, pad = 26;
+  var H = Math.round(Math.min(420, Math.max(170, (W - 2 * pad) * bh / bw + 2 * pad)));
+  var k = Math.min((W - 2 * pad) / bw, (H - 2 * pad) / bh), ox = (W - bw * k) / 2, oy = (H - bh * k) / 2;
+  MD.view = {b:b, k:k, ox:ox, oy:oy, W:W, H:H};
+  function PX(x){ return ox + (x - b[0]) * k; } function PY(y){ return oy + (b[3] - y) * k; }
+  function f1(v){ return (Math.round(v * 10) / 10).toFixed(1); }
+  function rr(x0, y0, x1, y1, r, cls, extra){ var x = Math.min(PX(x0), PX(x1)), y = Math.min(PY(y0), PY(y1)), w = Math.abs(PX(x1) - PX(x0)), hh = Math.abs(PY(y1) - PY(y0)), rp = Math.min(r * k, w / 2, hh / 2);
+    return '<rect class="' + cls + '" x="' + f1(x) + '" y="' + f1(y) + '" width="' + f1(w) + '" height="' + f1(hh) + '" rx="' + f1(rp) + '"' + (extra || '') + '/>'; }
+  function cc(x, y, r, cls, extra){ return '<circle class="' + cls + '" cx="' + f1(PX(x)) + '" cy="' + f1(PY(y)) + '" r="' + f1(Math.max(r * k, 1.5)) + '"' + (extra || '') + '/>'; }
+  function tx(x, y, t, anchor, cls){ return '<text class="m-t' + (cls ? ' ' + cls : '') + '" x="' + f1(x) + '" y="' + f1(y) + '" text-anchor="' + (anchor || 'middle') + '">' + esc(t) + '</text>'; }
+  var o = '<defs><pattern id="mhatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" class="m-hbg"/><line x1="0" y1="0" x2="0" y2="6" class="m-hl"/></pattern></defs>';
+  o += '<rect class="m-bg" x="0" y="0" width="' + W + '" height="' + H + '"/>';
+  var step = k * 10 >= 7 ? 10 : k * 50 >= 7 ? 50 : 100, g = '';
+  for (var gx = Math.ceil(b[0] / step) * step; gx <= b[2]; gx += step) g += 'M' + f1(PX(gx)) + ' 0V' + H;
+  for (var gy = Math.ceil(b[1] / step) * step; gy <= b[3]; gy += step) g += 'M0 ' + f1(PY(gy)) + 'H' + W;
+  o += '<path class="m-grid" d="' + g + '"/>';
+  /* półfabrykat */
+  o += rr(0, 0, X, Y, 0, 'm-stock');
+  var under = $('#n-under') && $('#n-under').checked && GEN_FILES.filter(function(p){ return !p.pdf; })[0];
+  if (under) o += '<image href="' + under.url + '" x="' + f1(PX(0)) + '" y="' + f1(PY(Y)) + '" width="' + f1(X * k) + '" height="' + f1(Y * k) + '" preserveAspectRatio="none" opacity="0.4"/>';
+  var face = GEN.feats.filter(function(f){ return f.type === 'face'; })[0];
+  if (face && face.on) o += rr(0, 0, X, Y, 0, 'm-face' + (MD.sel === face.id ? ' m-sel' : ''));
+  /* kontury zewnętrzne: materiał do zebrania wokół */
+  GEN.feats.forEach(function(f){
+    if (f.type !== 'boss') return;
+    var sel = MD.sel === f.id, cls = f.on ? '' : ' m-off';
+    if (f.on){
+      var outer = 'M' + f1(PX(0)) + ' ' + f1(PY(0)) + 'H' + f1(PX(X)) + 'V' + f1(PY(Y)) + 'H' + f1(PX(0)) + 'Z';
+      var inner = f.shape === 'circle' ? 'M' + f1(PX(f.cx + f.d / 2)) + ' ' + f1(PY(f.cy)) + 'a' + f1(f.d / 2 * k) + ' ' + f1(f.d / 2 * k) + ' 0 1 0 ' + f1(-f.d * k) + ' 0a' + f1(f.d / 2 * k) + ' ' + f1(f.d / 2 * k) + ' 0 1 0 ' + f1(f.d * k) + ' 0Z' : '';
+      o += '<path class="m-cut" fill-rule="evenodd" d="' + outer + inner + '"/>';
+      if (f.shape !== 'circle') o += rr(f.cx - f.w / 2, f.cy - f.h / 2, f.cx + f.w / 2, f.cy + f.h / 2, f.r, 'm-island');
+    }
+    o += (f.shape === 'circle' ? cc(f.cx, f.cy, f.d / 2, 'm-boss' + cls + (sel ? ' m-sel' : ''), ' data-fid="' + f.id + '"') : rr(f.cx - f.w / 2, f.cy - f.h / 2, f.cx + f.w / 2, f.cy + f.h / 2, f.r, 'm-boss' + cls + (sel ? ' m-sel' : ''), ' data-fid="' + f.id + '"'));
+  });
+  /* kieszenie */
+  GEN.feats.forEach(function(f){
+    if (f.type !== 'pocket') return;
+    var cls = 'm-pocket' + (f.on ? '' : ' m-off') + (MD.sel === f.id ? ' m-sel' : ''), a = ' data-fid="' + f.id + '"';
+    o += f.shape === 'circle' ? cc(f.cx, f.cy, f.d / 2, cls, a) : rr(f.cx - f.w / 2, f.cy - f.h / 2, f.cx + f.w / 2, f.cy + f.h / 2, f.r, cls, a);
+  });
+  /* otwory */
+  GEN.feats.forEach(function(f){
+    if (f.type !== 'hole') return;
+    var ti = f.kind === 'tap' ? tapInfo(f.thread) : null, sel = MD.sel === f.id, rd = (ti ? ti.drill : f.d) / 2, rt = ti ? ti.d / 2 : 0;
+    f.pts.forEach(function(p, i){
+      var a = ' data-fid="' + f.id + '" data-pi="' + i + '"', cls = (f.on ? '' : ' m-off') + (sel ? ' m-sel' : '');
+      if (rt) o += cc(p[0], p[1], rt, 'm-thread' + cls);
+      o += cc(p[0], p[1], rd, 'm-hole' + (f.kind === 'ream' ? ' m-ream' : '') + cls);
+      var cx = PX(p[0]), cy = PY(p[1]), s = Math.max(rt || rd, 1.5) * k + 3;
+      o += '<path class="m-cross' + (f.on ? '' : ' m-off') + '" d="M' + f1(cx - s) + ' ' + f1(cy) + 'h' + f1(2 * s) + 'M' + f1(cx) + ' ' + f1(cy - s) + 'v' + f1(2 * s) + '"/>';
+      o += '<circle class="m-hit" cx="' + f1(cx) + '" cy="' + f1(cy) + '" r="' + f1(Math.max((rt || rd) * k, 14)) + '"' + a + '/>';
+    });
+  });
+  /* punkt zerowy G54 */
+  if (0 >= b[0] && 0 <= b[2] && 0 >= b[1] && 0 <= b[3]){
+    var zx = PX(0), zy = PY(0);
+    o += '<path class="m-axx" d="M' + f1(zx) + ' ' + f1(zy) + 'h22m-5 -3.5l5 3.5-5 3.5"/><path class="m-axy" d="M' + f1(zx) + ' ' + f1(zy) + 'v-22m-3.5 5l3.5-5 3.5 5"/>';
+    o += '<circle class="m-org" cx="' + f1(zx) + '" cy="' + f1(zy) + '" r="3.2"/>' + tx(zx + 26, zy + 4, 'X', 'start', 'm-tx') + tx(zx - 4, zy - 25, 'Y', 'end', 'm-ty');
+  }
+  /* wymiary półfabrykatu */
+  o += tx((PX(0) + PX(X)) / 2, PY(Y) - 8, String(r3(X)).replace('.', ','), 'middle', 'm-dim') + '<text class="m-t m-dim" transform="translate(' + f1(PX(X) + 12) + ' ' + f1((PY(0) + PY(Y)) / 2) + ') rotate(-90)" text-anchor="middle">' + String(r3(Y)).replace('.', ',') + '</text>';
+  /* opis zaznaczonego */
+  var sf = MD.sel && featById(MD.sel);
+  if (sf && sf.type !== 'face'){
+    var q = fBox(sf), lx = (PX(q[0]) + PX(q[2])) / 2, ly = PY(q[3]) - 7;
+    if (ly < 14) ly = PY(q[1]) + 16;
+    o += tx(lx, ly, fDims(sf).split(' · ')[0], 'middle', 'm-lab');
+  }
+  /* podgląd rysowania */
+  if (MD.pv){
+    var v = MD.pv;
+    o += v.shape === 'circle' ? cc(v.cx, v.cy, Math.max(v.d / 2, 0.5), 'm-prev') : rr(v.box[0], v.box[1], v.box[2], v.box[3], 0, 'm-prev');
+  }
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  svg.innerHTML = o;
+  svg.classList.toggle('editing', MD.tool !== 'sel' || !!MD.sel);
+  renderDro(); renderFList();
+  setPressed('#n-tools', 'data-tool', MD.tool);
+  $('#n-mex').innerHTML = GEN.mex ? '<span class="ex">przykład</span>' : '';
+  $('#n-underw').hidden = !GEN_FILES.some(function(p){ return !p.pdf; });
+}
+var TOOL_HINT = {sel:'Dotknij elementu, żeby go wybrać', pocket:'Przeciągnij palcem — kieszeń', pocketc:'Od środka na zewnątrz — kieszeń okrągła', boss:'Przeciągnij — obrys czopu', hole:'Dotknij miejsca otworu', tap:'Dotknij miejsca gwintu', addpt:'Dotykaj kolejnych otworów'};
+function renderDro(){
+  var d = $('#n-dro'), c = MD.cur, sf = MD.sel && featById(MD.sel);
+  var left = c ? 'X ' + fmtN(c[0]) + '  Y ' + fmtN(c[1]) : sf ? fName(sf) + ' · ' + fDims(sf) : TOOL_HINT[MD.tool];
+  var right = MD.pv ? (MD.pv.shape === 'circle' ? 'Ø' + fmtN(MD.pv.d) : fmtN(MD.pv.box[2] - MD.pv.box[0]) + ' × ' + fmtN(MD.pv.box[3] - MD.pv.box[1])) : MD.tool === 'addpt' ? '<button type="button" class="btn primary" id="n-ptdone">Gotowe</button>' : '';
+  d.innerHTML = '<span class="' + (c ? 'mono' : '') + '">' + esc(left) + '</span>' + (right ? '<span class="mdr">' + (right.indexOf('<') === 0 ? right : '<b class="mono">' + esc(right) + '</b>') + '</span>' : '');
+}
+function renderFList(){
+  var on = GEN.feats.filter(function(f){ return f.on; }).length;
+  $('#n-fcount').textContent = on + ' z ' + GEN.feats.length + ' do obróbki';
+  $('#n-flist').innerHTML = GEN.feats.map(function(f){
+    return '<li class="mfi' + (MD.sel === f.id ? ' cur' : '') + (f.on ? '' : ' off') + '"><label class="mchk"><input type="checkbox" data-fon="' + f.id + '"' + (f.on ? ' checked' : '') + ' aria-label="Obrabiaj: ' + esc(fName(f)) + '"></label>' +
+      '<button type="button" class="mfb" data-fsel="' + f.id + '"><b>' + esc(fName(f)) + '</b><small class="mono">' + esc(fDims(f)) + '</small></button></li>';
+  }).join('');
+}
+
+/* ----- Inspektor wybranego elementu ----- */
+function mf(f, k, label, hint){
+  var v = f[k] == null ? '' : f[k];
+  return '<div class="field"><label class="lab" for="mf-' + k + '">' + label + '</label><div class="num"><input id="mf-' + k + '" data-mf="' + k + '" inputmode="decimal" autocomplete="off" value="' + esc(String(v)) + '">' +
+    (/^(cx|cy)$/.test(k) ? '<button type="button" class="pm" data-for="mf-' + k + '" aria-label="Zmień znak">±</button>' : '') + '</div>' + (hint ? '<span class="hint">' + hint + '</span>' : '') + '</div>';
+}
+/* ----- Schemat elementu z liczbami: widok z góry i przekrój z boku. Pole w edycji podświetla swój wymiar. ----- */
+var F_INTRO = {
+  face:'Zebranie cienkiej warstwy z całej górnej powierzchni, żeby była równa. Zero Z (Z0) leży na gotowej górze detalu.',
+  pocket:'Zagłębienie wyfrezowane w detalu. Frez wjeżdża w materiał i zbiera go warstwami aż do podanej głębokości.',
+  boss:'Kształt, który ma zostać — czop, wysepka albo obrys detalu. Frez obchodzi go dookoła i zbiera materiał na zewnątrz.',
+  drill:'Otwór wiercony. Najpierw nawiertak (żeby wiertło nie uciekło), potem wiertło — dobiorę je sam.',
+  tap:'Otwór gwintowany: nawiercenie, wiercenie pod gwint i gwintownik. Wiertło pod gwint dobiorę z tabeli.',
+  ream:'Otwór dokładny (H7): nawiercenie, wiertło trochę mniejsze, potem rozwiertak na wymiar.'
+};
+function fDiagram(f){
+  var n = function(v){ return String(r3(v)).replace('.', ','); };
+  var o = '<svg class="fdg" viewBox="0 0 320 150" role="img" aria-label="Schemat wymiarów (nie w skali)">';
+  function ar(x1, y1, x2, y2, dim, txt, tx, ty, anchor){
+    return '<g data-dim="' + dim + '"><line class="fd-dim" x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" marker-start="url(#fda)" marker-end="url(#fda)"/><text class="fd-t" x="' + tx + '" y="' + ty + '" text-anchor="' + (anchor || 'middle') + '">' + esc(txt) + '</text></g>';
+  }
+  o += '<defs><marker id="fda" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 1L9 5L0 9z" class="fd-mk"/></marker></defs>';
+  o += '<text class="fd-h" x="8" y="14">Z góry</text><text class="fd-h" x="208" y="14">Z boku (przekrój)</text>';
+  /* widok z góry: detal 20..170 × 24..130, zero w lewym dolnym rogu */
+  var X0 = 20, Y0 = 130, X1 = 170, Y1 = 24;
+  o += '<rect class="fd-stock" x="' + X0 + '" y="' + Y1 + '" width="' + (X1 - X0) + '" height="' + (Y0 - Y1) + '"/>';
+  o += '<g class="fd-org"><path class="fd-ax" d="M' + X0 + ' ' + Y0 + 'h16M' + X0 + ' ' + Y0 + 'v-16"/><circle cx="' + X0 + '" cy="' + Y0 + '" r="2.5" class="fd-o"/><text class="fd-s" x="' + (X0 + 3) + '" y="' + (Y0 + 13) + '">zero</text></g>';
+  var cx = 95, cy = 77;
+  if (f.type === 'face'){
+    o += '<rect class="fd-feat" x="' + X0 + '" y="' + Y1 + '" width="' + (X1 - X0) + '" height="' + (Y0 - Y1) + '" opacity=".5"/><text class="fd-s" x="' + cx + '" y="' + (cy + 4) + '" text-anchor="middle">cała góra</text>';
+  } else if (f.type === 'hole'){
+    var ti = f.kind === 'tap' ? tapInfo(f.thread) : null, lab = ti ? ti.name : 'Ø' + n(f.d);
+    [[55, 55], [135, 55], [55, 100], [135, 100]].slice(0, Math.max(1, Math.min(4, f.pts.length))).forEach(function(q){ o += '<circle class="fd-feat" cx="' + q[0] + '" cy="' + q[1] + '" r="9"/>' + (ti ? '<circle class="fd-thr" cx="' + q[0] + '" cy="' + q[1] + '" r="12"/>' : ''); });
+    var p0 = [55, 100];
+    o += '<g data-dim="pts"><path class="fd-ref" d="M' + X0 + ' ' + p0[1] + 'H' + p0[0] + 'M' + p0[0] + ' ' + Y0 + 'V' + p0[1] + '"/><text class="fd-t" x="' + ((X0 + p0[0]) / 2) + '" y="' + (p0[1] - 4) + '" text-anchor="middle">X</text><text class="fd-t" x="' + (p0[0] + 4) + '" y="' + ((Y0 + p0[1]) / 2 + 4) + '">Y</text></g>';
+    o += '<g data-dim="' + (ti ? 'thread' : 'd') + '"><line class="fd-dim" x1="126" y1="55" x2="144" y2="55" marker-start="url(#fda)" marker-end="url(#fda)"/><text class="fd-t" x="135" y="38" text-anchor="middle">' + esc(lab) + '</text></g>';
+  } else {
+    var circ = f.shape === 'circle', w = 86, hh = 50;
+    if (f.type === 'boss') o += '<rect class="fd-cut" x="' + X0 + '" y="' + Y1 + '" width="' + (X1 - X0) + '" height="' + (Y0 - Y1) + '"/>';
+    if (circ){
+      o += '<circle class="' + (f.type === 'boss' ? 'fd-keep' : 'fd-feat') + '" cx="' + cx + '" cy="' + cy + '" r="30"/>';
+      o += ar(cx - 30, cy, cx + 30, cy, 'd', 'Ø' + n(f.d), cx, cy - 6);
+    } else {
+      var rx = Math.min(14, f.r > 0 ? 6 + Math.min(8, f.r) : 0);
+      o += '<rect class="' + (f.type === 'boss' ? 'fd-keep' : 'fd-feat') + '" x="' + (cx - w / 2) + '" y="' + (cy - hh / 2) + '" width="' + w + '" height="' + hh + '" rx="' + rx + '"/>';
+      o += ar(cx - w / 2, cy - hh / 2 - 8, cx + w / 2, cy - hh / 2 - 8, 'w', 'X ' + n(f.w), cx - 8, cy - hh / 2 - 12);
+      o += ar(cx + w / 2 + 10, cy - hh / 2, cx + w / 2 + 10, cy + hh / 2, 'h', 'Y ' + n(f.h), cx + w / 2 + 14, cy + 4, 'start');
+      o += '<g data-dim="r"><path class="fd-ref" d="M' + (cx + w / 2 - rx) + ' ' + (cy - hh / 2 + rx) + 'l' + (rx * .7) + ' ' + (-rx * .7) + 'l8 -8"/><text class="fd-t" x="' + (cx + w / 2 + 4) + '" y="' + (cy - hh / 2 - 2) + '">R ' + n(f.r) + '</text></g>';
+    }
+    o += '<g data-dim="cx"><path class="fd-ref" d="M' + X0 + ' ' + cy + 'H' + cx + '"/><text class="fd-t" x="' + ((X0 + cx) / 2) + '" y="' + (cy - 4) + '" text-anchor="middle">' + n(f.cx) + '</text></g>';
+    o += '<g data-dim="cy"><path class="fd-ref" d="M' + cx + ' ' + Y0 + 'V' + cy + '"/><text class="fd-t" x="' + (cx + 4) + '" y="' + (Y0 - 6) + '">' + n(f.cy) + '</text></g>';
+    o += '<circle class="fd-o" cx="' + cx + '" cy="' + cy + '" r="2.5"/>';
+    if (f.type === 'boss') o += '<g data-dim="stock"><line class="fd-dim" x1="' + (cx - w / 2 - 22) + '" y1="' + (cy - 12) + '" x2="' + (cx - w / 2) + '" y2="' + (cy - 12) + '" marker-start="url(#fda)" marker-end="url(#fda)"/><text class="fd-t" x="' + (cx - w / 2 - 11) + '" y="' + (cy - 17) + '" text-anchor="middle">' + n(f.stock) + '</text></g>';
+  }
+  /* przekrój z boku: góra detalu na y=40 */
+  var SX0 = 208, SX1 = 312, ST = 42, SB = 118;
+  if (f.type === 'face'){
+    o += '<rect class="fd-stock" x="' + SX0 + '" y="' + ST + '" width="' + (SX1 - SX0) + '" height="' + (SB - ST) + '"/><rect class="fd-feat" x="' + SX0 + '" y="' + (ST - 10) + '" width="' + (SX1 - SX0) + '" height="10"/>';
+    o += ar(SX1 - 6, ST - 10, SX1 - 6, ST, 'top', n(f.top), SX1 - 12, ST - 14, 'end') + '<text class="fd-s" x="' + SX0 + '" y="' + (ST + 14) + '">Z0</text>';
+  } else if (f.type === 'hole'){
+    var dep = f.through ? SB - ST : Math.min(SB - ST - 10, 54);
+    o += '<rect class="fd-stock" x="' + SX0 + '" y="' + ST + '" width="' + (SX1 - SX0) + '" height="' + (SB - ST) + '"/>';
+    o += '<path class="fd-hole" d="M250 ' + ST + 'h18v' + dep + (f.through ? 'h-18z' : 'l-9 8l-9 -8z') + '"/>';
+    if (f.kind === 'tap') o += '<path class="fd-thr" d="M249 ' + (ST + 4) + 'h20M249 ' + (ST + 10) + 'h20M249 ' + (ST + 16) + 'h20M249 ' + (ST + 22) + 'h20"/>';
+    o += ar(286, ST, 286, ST + dep, f.through ? 'through' : 'depth', f.through ? 'na wylot' : n(f.depth), 290, ST + dep / 2 + 4, 'start');
+    o += '<text class="fd-s" x="' + SX0 + '" y="' + (ST - 4) + '">góra Z0</text>';
+  } else {
+    var d2 = 34;
+    if (f.type === 'pocket'){
+      o += '<path class="fd-stock" d="M' + SX0 + ' ' + ST + 'H232V' + (ST + d2) + 'H288V' + ST + 'H' + SX1 + 'V' + SB + 'H' + SX0 + 'Z"/>';
+      o += ar(260, ST, 260, ST + d2, 'depth', n(f.depth), 264, ST + d2 / 2 + 4, 'start');
+    } else {
+      o += '<path class="fd-stock" d="M' + SX0 + ' ' + (ST + d2) + 'H236V' + ST + 'H284V' + (ST + d2) + 'H' + SX1 + 'V' + SB + 'H' + SX0 + 'Z"/>';
+      o += '<path class="fd-cutl" d="M' + SX0 + ' ' + ST + 'H236V' + (ST + d2) + 'H' + SX0 + 'ZM284 ' + ST + 'H' + SX1 + 'V' + (ST + d2) + 'H284Z"/>';
+      o += ar(296, ST, 296, ST + d2, 'depth', n(f.depth), 300, ST + d2 / 2 + 4, 'start');
+    }
+    o += '<text class="fd-s" x="' + SX0 + '" y="' + (ST - 4) + '">góra Z0</text>';
+  }
+  o += '<text class="fd-s" x="312" y="146" text-anchor="end">schemat, nie w skali · liczby z pól</text></svg>';
+  return o;
+}
+function fdHighlight(k){
+  $$('#n-insp .fdg [data-dim]').forEach(function(g){ g.classList.toggle('hl', !!k && g.getAttribute('data-dim') === k); });
+}
+function renderInsp(){
+  var box = $('#n-insp'), f = MD.sel && featById(MD.sel);
+  if (!f){ box.innerHTML = ''; box.hidden = true; return; }
+  box.hidden = false;
+  var h = '<div class="minsp"><div class="minh"><b>' + esc(fName(f)) + '</b><button type="button" class="btn ghost" data-mclose>Zamknij</button></div>' +
+    '<p class="fintro">' + esc(F_INTRO[f.type === 'hole' ? f.kind : f.type]) + '</p>' +
+    '<label class="switch"><span>Obrabiaj ten element<small>' + (f.on ? 'wejdzie do programu' : 'zostaje na modelu, bez obróbki') + '</small></span><input type="checkbox" data-mf="on"' + (f.on ? ' checked' : '') + '></label>';
+  var dg = '<div class="fdgw">' + fDiagram(f) + '</div>';
+  if (f.type === 'face') h += dg + '<div class="fields">' + mf(f, 'top', 'Ile zebrać z góry', 'mm — warstwa nad gotową górą') + '</div>';
+  if (f.type === 'pocket' || f.type === 'boss'){
+    h += '<div class="seg" data-mseg="shape"><button type="button" data-v="rect" aria-pressed="' + (f.shape === 'rect') + '">Prostokąt</button><button type="button" data-v="circle" aria-pressed="' + (f.shape === 'circle') + '">Okrąg</button></div>';
+    h += dg + '<div class="fields">' + (f.shape === 'circle' ? mf(f, 'd', 'Średnica', 'mm') : mf(f, 'w', 'Długość (wzdłuż X)', 'mm') + mf(f, 'h', 'Szerokość (wzdłuż Y)', 'mm')) +
+      mf(f, 'cx', 'Środek — odległość X', 'od zera detalu') + mf(f, 'cy', 'Środek — odległość Y', 'od zera detalu') +
+      (f.shape === 'rect' ? mf(f, 'r', 'Zaokrąglenie narożników R', f.type === 'pocket' ? 'z rysunku; 0 = najmniejsze możliwe' : '0 = ostre narożniki') : '') +
+      mf(f, 'depth', 'Głębokość', 'mm w dół od góry detalu') + (f.type === 'boss' ? mf(f, 'stock', 'Materiał wokół do zebrania', 'mm z każdej strony') : '') + '</div>';
+  }
+  if (f.type === 'hole'){
+    h += '<div class="seg" data-mseg="kind"><button type="button" data-v="drill" aria-pressed="' + (f.kind === 'drill') + '">Wiercenie</button><button type="button" data-v="tap" aria-pressed="' + (f.kind === 'tap') + '">Gwint</button><button type="button" data-v="ream" aria-pressed="' + (f.kind === 'ream') + '">Rozwiert. H7</button></div>';
+    var ti = f.kind === 'tap' ? tapInfo(f.thread) : null;
+    h += dg + '<div class="fields">' + (f.kind === 'tap'
+        ? '<div class="field"><label class="lab" for="mf-thread">Gwint</label><div class="num"><input id="mf-thread" class="txt" data-mf="thread" autocomplete="off" autocapitalize="characters" value="' + esc(f.thread) + '"></div><span class="hint">' + (ti ? 'wiertło Ø' + String(ti.drill).replace('.', ',') + ', skok ' + String(ti.pitch).replace('.', ',') : 'np. M8 albo M8x1') + '</span></div>'
+        : mf(f, 'd', f.kind === 'ream' ? 'Średnica otworu (H7)' : 'Średnica otworu', 'mm')) +
+      mf(f, 'depth', f.kind === 'tap' ? 'Długość gwintu' : 'Głębokość otworu', 'mm od góry detalu') + '</div>';
+    h += '<label class="switch"><span>Przelotowe<small>' + (isFinite(stZ()) ? 'na grubość detalu ' + fmtN(stZ()) + ' mm' : 'wpisz grubość detalu u góry') + '</small></span><input type="checkbox" data-mf="through"' + (f.through ? ' checked' : '') + '></label>';
+    h += '<div class="field"><label class="lab" for="mf-pts">Gdzie są otwory: X i Y od zera, jeden w linii — ' + f.pts.length + ' ' + (f.pts.length === 1 ? 'otwór' : f.pts.length < 5 ? 'otwory' : 'otworów') + '</label><textarea id="mf-pts" class="aiq mono" rows="' + Math.min(6, f.pts.length + 1) + '" data-mf="pts" spellcheck="false">' + esc(f.pts.map(function(p){ return fmtN(p[0]) + ' ' + fmtN(p[1]); }).join('\n')) + '</textarea></div>';
+    h += '<button type="button" class="btn wide" data-maddpt>+ Dodaj otwory, dotykając modelu</button>';
+  }
+  if (f.type !== 'face') h += '<div class="row"><button type="button" class="btn" data-mdup>Duplikuj</button><button type="button" class="btn danger" data-mdel>Usuń element</button></div>';
+  box.innerHTML = h + '</div>';
+}
+function selectFeat(id){ MD.sel = id; if (MD.tool === 'addpt') MD.tool = 'sel'; renderModel(); renderInsp(); }
+
+/* ----- Dotyk / mysz na modelu ----- */
+function mPoint(e){
+  var svg = $('#n-svg'), v = MD.view, pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+  var p = pt.matrixTransform(svg.getScreenCTM().inverse());
+  return [snap((p.x - v.ox) / v.k + v.b[0]), snap(v.b[3] - (p.y - v.oy) / v.k)];
+}
+function addFeat(o){ var f = normFeat(o); if (!f) return null; GEN.feats.push(f); MD.sel = f.id; return f; }
+$('#n-svg').addEventListener('pointerdown', function(e){
+  if (e.button > 0) return;
+  var p = mPoint(e), t = MD.tool, hit = e.target.closest('[data-fid]');
+  MD.cur = p;
+  if (t === 'pocket' || t === 'boss' || t === 'pocketc'){
+    MD.act = {mode:'draw', p0:p}; this.setPointerCapture(e.pointerId); e.preventDefault();
+    MD.pv = t === 'pocketc' ? {shape:'circle', cx:p[0], cy:p[1], d:0, box:[p[0], p[1], p[0], p[1]]} : {shape:'rect', box:[p[0], p[1], p[0], p[1]]};
+    renderModel(); return;
+  }
+  if (t === 'hole' || t === 'tap' || t === 'addpt'){ MD.act = {mode:'place', p0:p}; e.preventDefault(); renderDro(); return; }
+  if (hit){
+    var id = hit.getAttribute('data-fid');
+    if (MD.sel === id){
+      var f = featById(id), pi = hit.hasAttribute('data-pi') ? +hit.getAttribute('data-pi') : -1;
+      MD.act = {mode:'move', id:id, pi:pi, p0:p, orig:JSON.parse(JSON.stringify(f)), moved:false};
+      this.setPointerCapture(e.pointerId); e.preventDefault();
+    } else { MD.act = {mode:'tapsel', id:id}; }
+    return;
+  }
+  MD.act = {mode:'tapempty', p0:p};
+});
+$('#n-svg').addEventListener('pointermove', function(e){
+  var a = MD.act; if (!a) return;
+  var p = mPoint(e); MD.cur = p;
+  if (a.mode === 'draw'){
+    var v = MD.pv;
+    if (v.shape === 'circle'){ v.d = r3(2 * Math.hypot(p[0] - a.p0[0], p[1] - a.p0[1])); v.d = snap(v.d); v.box = [v.cx - v.d / 2, v.cy - v.d / 2, v.cx + v.d / 2, v.cy + v.d / 2]; }
+    else v.box = [Math.min(a.p0[0], p[0]), Math.min(a.p0[1], p[1]), Math.max(a.p0[0], p[0]), Math.max(a.p0[1], p[1])];
+    renderModel(); return;
+  }
+  if (a.mode === 'move'){
+    var f = featById(a.id), dx = p[0] - a.p0[0], dy = p[1] - a.p0[1];
+    if (!a.moved && Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+    a.moved = true;
+    if (f.type === 'hole'){ if (a.pi >= 0) f.pts[a.pi] = [r3(a.orig.pts[a.pi][0] + dx), r3(a.orig.pts[a.pi][1] + dy)]; }
+    else { f.cx = r3(a.orig.cx + dx); f.cy = r3(a.orig.cy + dy); }
+    renderModel(); return;
+  }
+  renderDro();
+});
+function mUp(e){
+  var a = MD.act; MD.act = null; if (!a) return;
+  var p = MD.cur || a.p0, t = MD.tool;
+  if (a.mode === 'draw'){
+    var v = MD.pv, X = stX(), Y = stY(); MD.pv = null;
+    if (v.shape === 'circle') addFeat({type:'pocket', shape:'circle', cx:v.cx, cy:v.cy, d:v.d >= 2 ? v.d : 20, depth:5});
+    else {
+      var w = v.box[2] - v.box[0], hh = v.box[3] - v.box[1], small = w < 2 || hh < 2;
+      if (t === 'boss') addFeat({type:'boss', shape:'rect', cx:small ? X / 2 : (v.box[0] + v.box[2]) / 2, cy:small ? Y / 2 : (v.box[1] + v.box[3]) / 2, w:small ? r3(X * 0.7) : w, h:small ? r3(Y * 0.7) : hh, r:0, depth:5, stock:2});
+      else addFeat({type:'pocket', shape:'rect', cx:small ? p[0] : (v.box[0] + v.box[2]) / 2, cy:small ? p[1] : (v.box[1] + v.box[3]) / 2, w:small ? 30 : w, h:small ? 20 : hh, r:small ? 5 : Math.min(5, w / 2, hh / 2), depth:5});
+    }
+    MD.tool = 'sel'; MD.cur = null; modelChanged(); renderInsp(); return;
+  }
+  if (a.mode === 'place'){
+    MD.cur = null;
+    if (t === 'addpt'){ var f = featById(MD.sel); if (f){ f.pts.push(a.p0); modelChanged(); renderInsp(); } return; }
+    addFeat(t === 'tap' ? {type:'hole', kind:'tap', thread:'M8', d:8, depth:12, pts:[a.p0]} : {type:'hole', kind:'drill', d:8.5, depth:isFinite(stZ()) ? stZ() : 10, through:isFinite(stZ()), pts:[a.p0]});
+    MD.tool = 'sel'; modelChanged(); renderInsp(); return;
+  }
+  MD.cur = null;
+  if (a.mode === 'move'){ if (a.moved) modelChanged(); else renderModel(); renderInsp(); return; }
+  if (a.mode === 'tapsel'){ selectFeat(a.id); return; }
+  if (a.mode === 'tapempty'){ if (MD.sel){ MD.sel = null; renderModel(); renderInsp(); } else renderDro(); }
+}
+$('#n-svg').addEventListener('pointerup', mUp);
+$('#n-svg').addEventListener('pointercancel', function(){ MD.act = null; MD.pv = null; MD.cur = null; renderModel(); });
+
+$('#n-tools').addEventListener('click', function(e){
+  var b = e.target.closest('[data-tool]'); if (!b) return;
+  MD.tool = b.getAttribute('data-tool'); if (MD.tool !== 'sel'){ MD.sel = null; renderInsp(); }
+  renderModel();
+});
+$('#n-dro').addEventListener('click', function(e){ if (e.target.id === 'n-ptdone'){ MD.tool = 'sel'; renderModel(); renderInsp(); } });
+$('#n-under').addEventListener('change', renderModel);
+$('#n-flist').addEventListener('change', function(e){
+  var id = e.target.getAttribute('data-fon'); if (!id) return;
+  var f = featById(id); f.on = e.target.checked; modelChanged(); if (MD.sel === id) renderInsp();
+});
+$('#n-flist').addEventListener('click', function(e){
+  var b = e.target.closest('[data-fsel]'); if (!b) return;
+  selectFeat(b.getAttribute('data-fsel'));
+  $('#n-svg').scrollIntoView({behavior:'smooth', block:'center'});
+});
+$('#n-insp').addEventListener('input', function(e){
+  var f = MD.sel && featById(MD.sel), k = e.target.getAttribute('data-mf'); if (!f || !k) return;
+  if (k === 'on' || k === 'through'){ f[k] = e.target.checked; if (k === 'through' && f.through && isFinite(stZ())) f.depth = stZ(); modelChanged(); renderInsp(); return; }
+  if (k === 'thread'){ f.thread = e.target.value.trim(); var ti = tapInfo(f.thread); if (ti) f.d = ti.d; }
+  else if (k === 'pts'){ var pts = holePattern({kind:'list', text:e.target.value}); if (pts.length) f.pts = pts; }
+  else { var v = parseNum(e.target.value); if (!isFinite(v)) return; f[k] = (k === 'cx' || k === 'cy') ? v : Math.abs(v); }
+  var dw = $('#n-insp .fdgw'); if (dw){ dw.innerHTML = fDiagram(f); fdHighlight(k); }
+  modelChanged();
+});
+$('#n-insp').addEventListener('focusin', function(e){ var k = e.target.getAttribute('data-mf'); fdHighlight(k === 'thread' ? 'thread' : k); });
+$('#n-insp').addEventListener('focusout', function(){ fdHighlight(null); });
+$('#n-insp').addEventListener('click', function(e){
+  var f = MD.sel && featById(MD.sel), b;
+  if (e.target.closest('[data-mclose]')){ MD.sel = null; renderModel(); renderInsp(); return; }
+  if (!f) return;
+  if ((b = e.target.closest('[data-mseg] [data-v]'))){
+    var k = b.parentNode.getAttribute('data-mseg'), v = b.getAttribute('data-v');
+    f[k] = v;
+    if (k === 'shape' && v === 'circle' && !(f.d > 0)) f.d = r3(Math.min(f.w, f.h) || 20);
+    if (k === 'shape' && v === 'rect' && !(f.w > 0)){ f.w = f.d; f.h = f.d; }
+    if (k === 'kind' && v === 'tap' && !tapInfo(f.thread)) f.thread = 'M' + (f.d >= 3 ? Math.round(f.d) : 8);
+    if (k === 'kind' && v === 'tap'){ var ti = tapInfo(f.thread); if (ti) f.d = ti.d; }
+    modelChanged(); renderInsp(); return;
+  }
+  if (e.target.closest('[data-maddpt]')){ MD.tool = 'addpt'; renderModel(); $('#n-svg').scrollIntoView({behavior:'smooth', block:'center'}); toast('Dotykaj miejsc otworów na modelu'); return; }
+  if (e.target.closest('[data-mdup]')){
+    var c = JSON.parse(JSON.stringify(f)); c.id = fid();
+    if (c.type === 'hole') c.pts = c.pts.map(function(p){ return [r3(p[0] + 10), r3(p[1])]; }); else c.cx = r3(c.cx + 10);
+    GEN.feats.push(c); MD.sel = c.id; modelChanged(); renderInsp(); return;
+  }
+  if (e.target.closest('[data-mdel]')){
+    var i = GEN.feats.indexOf(f); GEN.feats.splice(i, 1); MD.sel = null; modelChanged(); renderInsp();
+    toastUndo('Usunięto: ' + fName(f), function(){ GEN.feats.splice(i, 0, f); MD.sel = f.id; modelChanged(); renderInsp(); });
+  }
+});
+/* Wymiary półfabrykatu i materiał */
+function renderStock(){
+  ['sx', 'sy', 'sz'].forEach(function(k){ var el = $('#n-' + k); if (document.activeElement !== el) el.value = GEN[k] || ''; });
+  $('#n-mmat').innerHTML = Object.keys(MATERIALS).map(function(m){ return '<option value="' + m + '"' + (GEN.mat === m ? ' selected' : '') + '>' + esc(MATERIALS[m].name) + '</option>'; }).join('');
+}
+$('.mstock').addEventListener('input', function(e){
+  var k = e.target.getAttribute('data-st'); if (!k) return;
+  GEN[k] = e.target.value;
+  GEN.feats.forEach(function(f){ if (k === 'sz' && f.type === 'hole' && f.through && isFinite(stZ())) f.depth = stZ(); });
+  modelChanged();
+});
+$('#n-mmat').addEventListener('change', function(){ GEN.mat = this.value; GEN.ops.forEach(autoCut); renderOps(); modelChanged(true); });
+
+/* ----- Krok 3: operacje z modelu ----- */
+function renderOpSum(){
+  var box = $('#n-opsum'), man = GEN.mode === 'ops';
+  $('#n-manual').hidden = !man;
+  if (man){
+    box.innerHTML = '<div class="mnote"><p>Edytujesz operacje ręcznie. Zmiany na modelu ich nie zmienią.</p><button type="button" class="btn" id="n-tomodel">Licz operacje z modelu</button></div>';
+    return;
+  }
+  if (!GEN.ops.length){ box.innerHTML = '<p class="tip">Zaznacz na modelu przynajmniej jeden element do obróbki.</p>'; return; }
+  box.innerHTML = '<ol class="msum">' + GEN.ops.map(function(op){
+    return '<li><b>' + esc(opTitle(op)) + '</b><small>' + esc(toolName(op)) + ' (T' + esc(op.T) + ') · obroty ' + esc(op.S || '?') + ' obr/min · posuw ' + esc(op.F || '?') + ' mm/min</small></li>';
+  }).join('') + '</ol><button type="button" class="tlink" id="n-toops">Zmień narzędzia, obroty albo kolejność ręcznie</button>';
+}
+$('#n-opsum').addEventListener('click', function(e){
+  if (e.target.id === 'n-toops'){ GEN.mode = 'ops'; genOpen = 0; genSave(); renderOps(); renderOpSum(); setTimeout(function(){ $('#n-manual').scrollIntoView({behavior:'smooth', block:'start'}); }, 30); }
+  if (e.target.id === 'n-tomodel'){
+    var before = JSON.parse(JSON.stringify(GEN.ops));
+    GEN.mode = 'model'; modelChanged(true);
+    toastUndo('Operacje policzone z modelu', function(){ GEN.ops = before; GEN.mode = 'ops'; renderOps(); renderOpSum(); genSoon(); });
+  }
+});
+/* Ręczne dodanie operacji przełącza w tryb ręczny */
+$('#n-add').addEventListener('click', function(e){ if (e.target.closest('[data-add]') && GEN.mode !== 'ops'){ GEN.mode = 'ops'; renderOpSum(); } }, true);
+
 var _showTabGen = showTab;
 showTab = function(t){
   if (t === 'gcode' || t === 'nowy') store.set('ptab', t);
   _showTabGen(t);
-  if (t === 'nowy'){ renderGenFiles(); if (genView) genView.stop && genView.stop(); }
+  if (t === 'nowy'){ renderGenFiles(); renderStock(); renderModel(); if (genView) genView.stop && genView.stop(); }
 };
 var _occGen = onControlChange;
-onControlChange = function(){ _occGen(); renderHead(); renderOps(); if (!$('#tab-nowy').hidden) renderGen(); else genSoon(); };
+onControlChange = function(){ _occGen(); renderHead(); renderOps(); renderOpSum(); if (!$('#tab-nowy').hidden) renderGen(); else genSoon(); };
 
-renderHead(); renderOps(); renderGenFiles(); renderGen();
+modelInit(); renderHead(); renderOps(); renderGenFiles(); renderStock(); renderModel(); renderInsp(); renderOpSum(); renderGen();

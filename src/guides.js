@@ -147,6 +147,7 @@ var START_GROUPS = [
     {guide:'restart', i:'<path d="M5 12a7 7 0 1 0 2-5"/><path d="M5 4v4h4"/>', c:'teal'}
   ]],
   ['Program i wiedza', [
+    {go:'check', t:'Sprawdź program przed wgraniem', s:'Krańcówki, promień freza, posuw, przejazdy w powietrzu', i:'<path d="M12 3l8 4v5c0 4.4-3.4 8-8 9-4.6-1-8-4.6-8-9V7z"/><path d="M8.5 12l2.5 2.5 4.5-5"/>', c:'teal'},
     {go:'nowy', t:'Napisz nowy program', s:'Z rysunku albo z wymiarów: kieszenie, kontury, otwory', i:'<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M12 11v6M9 14h6"/>', c:'blue'},
     {go:'gcode', t:'Zmień wymiar w programie', s:'Podgląd ruchów, poszerz, przesuń', i:'<path d="M8 5L3 12l5 7"/><path d="M16 5l5 7-5 7"/><path d="M13.5 4l-3 16"/>', c:'indigo'},
     {go:'ai', t:'Zdjęcie programu do AI', s:'ChatGPT, Claude, Gemini', i:'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>', c:'green'},
@@ -301,23 +302,34 @@ function toolCalc(box){
 /* ----- Wyszukiwarka na ekranie Start: przewodniki, alarmy, kody ----- */
 function startSearch(){
   var raw = $('#st-q').value.trim(), q = norm(raw), out = [];
+  renderStartRecentA();
   if (!q){ $('#st-res').hidden = true; $('#st-tasks').hidden = false; return; }
+  var c = ctl(), F = findAlarms(raw, c), cards = '', hit = '';
+  /* Ten sam numer alarmu: od razu cała karta, bez dodatkowego dotknięcia */
+  F.std.forEach(function(x){ if (x.s === 0){ cards += alarmStdCard(x.a, c, true); hit = hit || x.a[0]; } });
+  if (F.M) F.mach.forEach(function(x){ if (x.s === 0){ cards += alarmMachCard(x.a, F.M, true); hit = hit || x.a[0]; } });
+  if (!cards && /^[A-Za-z]{0,3}\s*\d{3,6}$/.test(raw)){ cards = alarmLookupCard(raw, c); if (cards) hit = alarmKey(raw).n; }
+  rememberHitSoon(hit);
   Object.keys(GUIDES).forEach(function(id){ var G = GUIDES[id]; if (norm(G.title + ' ' + G.sub + ' ' + G.keys).indexOf(q) >= 0) out.push({k:'guide', id:id, t:G.title, s:'Przewodnik'}); });
-  var c = ctl();
-  (ALARMS[c] || []).forEach(function(a){ if (norm(a.join(' ')).indexOf(q) >= 0) out.push({k:'alarm', q:a[0], t:a[0] + ' — ' + a[2], s:'Alarm ' + (c === 'fanuc' ? 'Fanuc' : 'Sinumerik')}); });
-  var M = MACHINE_ALARMS[S.machine];
-  if (M && M.ctl === c) M.list.forEach(function(a){ if (norm(a[0] + ' ' + a[1]).indexOf(q) >= 0) out.push({k:'alarm', q:a[0], t:a[0] + ' — ' + a[1], s:'Alarm maszyny'}); });
+  F.std.forEach(function(x){ if (x.s > 0) out.push({k:'alarm', q:x.a[0], t:x.a[0] + ' — ' + x.a[2], s:'Alarm ' + (c === 'fanuc' ? 'Fanuc' : 'Sinumerik')}); });
+  F.mach.forEach(function(x){ if (x.s > 0) out.push({k:'alarm', q:x.a[0], t:x.a[0] + ' — ' + x.a[1], s:'Alarm maszyny'}); });
   CODES.forEach(function(r){ var code = c === 'fanuc' ? r[2] : r[3]; if (norm(code + ' ' + r[1] + ' ' + r[4]).indexOf(q) >= 0) out.push({k:'code', q:code.split(/[ /]/)[0], t:code + ' — ' + r[1], s:'Kod'}); });
   (FULL_CODES[c] || []).forEach(function(r){ if (norm(r[0] + ' ' + r[1]).indexOf(q) >= 0 && !out.some(function(o){ return o.k === 'code' && o.t.indexOf(r[0]) === 0; })) out.push({k:'full', q:r[0], t:r[0] + ' — ' + r[1], s:'Kod (pełna lista)'}); });
   GLOSSARY.forEach(function(g){ if (norm(g[1] + ' ' + g[2]).indexOf(q) >= 0) out.push({k:'term', id:g[0], t:g[1], s:'Pojęcie'}); });
-  var looksAlarm = /^\d{3,6}$/.test(raw) && !out.some(function(o){ return o.k === 'alarm'; });
-  if (looksAlarm) out.unshift({k:'alarm', q:raw, t:'Alarm ' + raw + ' — poszukaj opisu', s:'Alarm spoza listy'});
   $('#st-tasks').hidden = true; $('#st-res').hidden = false;
-  $('#st-res').innerHTML = out.slice(0, 12).map(function(o, i){
+  $('#st-res').innerHTML = cards + out.slice(0, cards ? 6 : 12).map(function(o, i){
     return '<li><button type="button" class="sres" data-ri="' + i + '"><span class="tt"><b>' + esc(o.t) + '</b><small>' + esc(o.s) + '</small></span><span class="chev" aria-hidden="true">›</span></button></li>';
   }).join('') || '<li class="crow"><p class="fine">Nic nie znaleziono. Spróbuj numeru alarmu, kodu (np. G54) albo słowa (np. długość).</p></li>';
   startSearch.res = out;
 }
+function renderStartRecentA(){
+  var box = $('#st-ralarm'), html = $('#st-q').value.trim() ? '' : recentChips('data-strecent');
+  box.innerHTML = html; box.hidden = !html;
+}
+$('#st-ralarm').addEventListener('click', function(e){
+  var b = e.target.closest('[data-strecent]'); if (!b) return;
+  $('#st-q').value = b.getAttribute('data-strecent'); startSearch(); window.scrollTo(0, 0);
+});
 $('#st-q').addEventListener('input', startSearch);
 $('#st-res').addEventListener('click', function(e){
   var b = e.target.closest('[data-ri]'); if (!b) return;

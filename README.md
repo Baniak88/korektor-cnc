@@ -2,10 +2,11 @@
 
 Aplikacja na telefon dla operatora frezarek CNC (Chiron FZ12, Matsuura MX-520, Quaser MV184 — Fanuc i Sinumerik).
 
-- **Korekcja z pomiaru** — ile zmienić zużycie narzędzia (D/H, ΔR/ΔL), żeby wymiar wszedł w tolerancję, i gdzie to wpisać na sterowaniu.
-- **Program** — symulacja 3D zbierania materiału (obrót palcem, korekcja promienia, wykrywanie ruchu szybkiego w materiał), podgląd ruchów (animacja toru narzędzia z opisem każdej linii, porównanie przed i po zmianie) oraz poszerzanie, przesuwanie i zamiana wymiarów w G-code z ostrzeżeniami.
+- **Korekcja z pomiaru** — ile zmienić zużycie narzędzia (D/H, ΔR/ΔL), żeby wymiar wszedł w tolerancję, i gdzie to wpisać na sterowaniu. Pasowania typu H7 / g6 wpisują odchyłki same, ostatnie wymiary wracają jednym dotknięciem.
+- **Program** — symulacja 3D zbierania materiału (obrót palcem, korekcja promienia, wykrywanie ruchu szybkiego w materiał), okno programu jak na sterowaniu z bieżącą linią, opisem po polsku i wyjaśnieniem każdego słowa (G1, X42, F800), porównanie przed i po zmianie oraz poszerzanie, przesuwanie i zamiana wymiarów w G-code z ostrzeżeniami.
 - **AI** — w wersji otwartej w Claude (https://claude.ai/artifact/YVM71eUHrsapEhqtbPeTW3) każdy pyta AI na swoim koncie Claude: odczyt programu ze zdjęcia, sprawdzenie i wyjaśnienie, kod trafia do zakładki Program jednym przyciskiem. W zainstalowanej aplikacji zdjęcie i pytanie wysyłasz przez menu Udostępnij do ChatGPT, Claude albo Gemini, a odpowiedź wraca sama: skopiuj ją w aplikacji AI (albo Udostępnij → Korektor CNC) i wróć — pojawi się w Korektorze z przyciskiem „Wstaw kod do Programu”.
-- **Nowy program** — z rysunku (zdjęcie albo PDF; AI odczytuje wymiary) albo z formularza: planowanie, kieszenie, kontury zewnętrzne, wiercenie, gwintowanie, rozwiercanie. Podgląd ruchów, lista narzędzi, Fanuc i Sinumerik.
+- **Nowy program** — model detalu jak szkic w CAD: AI buduje go ze zdjęcia albo PDF rysunku, albo rysujesz palcem kieszenie, kontury, otwory i gwinty. Dotykasz elementów, które chcesz obrobić; narzędzia, kolejność, obroty i posuwy dobierają się same. Każde pole ma prostą nazwę i schemat wymiaru. Podgląd 3D, lista narzędzi, Fanuc i Sinumerik.
+- **Kontrola przed wgraniem** — czy ruchy zmieszczą się w krańcówkach (z G54 i długości narzędzia), czy frez mieści się w łukach przy G41/G42, czy każdy ruch roboczy ma posuw i ile czasu idzie na przejazdy w powietrzu.
 - **AI z kluczem API** — każdy wpisuje swój klucz Claude, ChatGPT albo Gemini; odpowiedzi pojawiają się w aplikacji. Klucz zostaje w telefonie.
 - **Diagnoza i obroty/posuw** — objaw → przyczyny → co sprawdzić; kalkulator S i F.
 - **Start** — ekran „Co chcesz zrobić?” z wyszukiwarką (alarm, kod, pojęcie) i przewodnikami krok po kroku: ustaw punkt zerowy G54, ustaw długość narzędzia, wpisz korekcję, wznów program, złamane narzędzie, krańcówka. Kalkulatory od razu podają liczbę do wpisania na sterowaniu.
