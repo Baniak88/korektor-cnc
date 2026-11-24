@@ -560,6 +560,20 @@ function calcZero(o){
   var edge = p - (o.side < 0 ? -1 : 1) * d / 2;
   return {value: r3(edge - ev), at: r3(edge)};
 }
+/* Fanuc OFFSET → [WORK] → [POMIAR]/[MEASURE]: liczba do wpisania przy osi (pozycja, jaką ma mieć oś wrzeciona w układzie).
+   Sterowanie liczy: układ = pozycja maszynowa − wpisana liczba. Krawędź: przesunięcie bazy + strona × promień (kulka z lewej → minus).
+   Środek: najpierw najedź na środek, wpisz przesunięcie bazy. Z: z długością narzędzia (L + płytka) i bez (sama płytka). */
+function measureInput(o){
+  var ev = parseNum(o.ev); if (!isFinite(ev)) ev = 0;
+  if (o.ax === 'Z'){
+    var b = parseNum(o.b); if (!isFinite(b)) b = 0;
+    var L = parseNum(o.L);
+    return {plain: r3(b + ev), withLen: isFinite(L) ? r3(L + b + ev) : null};
+  }
+  if (o.m === 'center') return {value: r3(ev)};
+  var d = parseNum(o.d); if (!isFinite(d)) return null;
+  return {value: r3(ev + (o.side < 0 ? -1 : 1) * d / 2)};
+}
 /* Długość narzędzia z dotknięcia. o: {m:'part'|'zero', p (Z maszynowe), base (G54 Z), b (płytka)} */
 function calcToolLen(o){
   var p = parseNum(o.p), b = parseNum(o.b); if (!isFinite(b)) b = 0;

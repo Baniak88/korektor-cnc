@@ -9,7 +9,8 @@ var GUIDES = {
         'Odczytaj pozycję <b>maszynową</b>: <b>POS</b> → <b>ALL</b> (WSZYSTKO) → kolumna <b>MASZYNA</b> (MACHINE). Wpisz ją w kalkulator powyżej.',
         '<b>OFFSET/SETTING</b> → przycisk ekranowy <b>[UKŁ.WSP]</b> / <b>[WORK]</b> → kursor na G54 (albo inny układ) i oś.',
         'Wpisz wynik z kalkulatora i naciśnij <b>[WPROWADŹ]</b> / <b>[INPUT]</b>. Nie [+WPROWADŹ] — to doda wartość do starej.',
-        'Szybciej dla X i Y: na tym samym ekranie wpisz pozycję, jaką ma mieć środek narzędzia (np. <b>X-5.</b> przy kulce Ø10 dotykającej z lewej) i naciśnij <b>[POMIAR]</b> / <b>[MEASURE]</b> — sterowanie samo policzy G54.',
+        'Bez liczenia — <b>[POMIAR]</b> / <b>[MEASURE]</b>: nie odjeżdżaj od krawędzi, na ekranie [WORK] ustaw kursor na G54 i oś, wpisz pozycję, jaką ma mieć oś wrzeciona (np. <b>X-5.</b> przy kulce Ø10 dotykającej z lewej, <b>X5.</b> z prawej) i naciśnij [POMIAR] (czasem najpierw [OPERACJA] / [OPRT]). <b>X0</b> / <b>Y0</b> wpisujesz tylko, gdy wrzeciono stoi dokładnie nad zerem — np. po najechaniu na środek otworu. Kalkulator wyżej podaje gotową liczbę.',
+        'Z0 narzędziem: wywołaj narzędzie ze zmierzoną długością (T… M06), dotknij górnej powierzchni przez płytkę, na ekranie [WORK] wiersz Z wpisz <b>Z</b> = długość narzędzia + grubość płytki → [POMIAR]. Sprawdź, czy G54 Z zgadza się z kalkulatorem (oś Z) — sterowanie z innymi parametrami może samo odjąć długość H.',
         'Sprawdź w <b>MDI</b>: <b>G90 G54 G00 X0 Y0</b> na bezpiecznej wysokości i zobacz, czy narzędzie stoi tam, gdzie trzeba.'
       ],
       sinumerik: [
@@ -215,7 +216,7 @@ function zeroCalc(box){
   function render(){
     var isZ = ZC.ax === 'Z', A = ZC.ax, F = c === 'fanuc';
     var read = F ? 'POS → [WSZYSTKO] / [ALL] → kolumna <b>MASZYNA</b>' : 'okno pozycji przełączone na <b>MKS</b>';
-    var how = isZ ? ['Dotknij narzędziem (albo przez płytkę) górnej powierzchni detalu.', 'Odczytaj <b>Z</b> na sterowaniu: ' + read + '.', 'Wpisz Z i długość narzędzia poniżej — dostaniesz liczbę do G54 Z.']
+    var how = isZ ? ['Wywołaj narzędzie ze zmierzoną długością (' + (F ? 'MDI: <b>T5 M06</b>' : 'MDA: <b>T5 M6 D1</b>') + ', Twój numer). Zjedź pokrętłem nad detal, na końcu krok 0.01, i dotknij górnej powierzchni — najlepiej przez płytkę albo kartkę, aż ledwo nie przejdzie.', 'Odczytaj <b>Z</b> na sterowaniu: ' + read + '.', 'Wpisz Z, długość narzędzia i płytkę poniżej — dostaniesz liczbę do G54 Z.']
       : ZC.m === 'center' ? ['Dotknij kulką ściany ' + (ZC.kind === 'hole' ? 'otworu' : 'czopu') + ' z jednej strony w osi ' + A + ' i odczytaj <b>' + A + '</b>: ' + read + '.', 'Dotknij przeciwnej ściany i odczytaj drugą liczbę.', 'Wpisz obie liczby poniżej — dostaniesz środek do G54 ' + A + '.']
       : ['Dotknij kulką (trzpieniem) krawędzi detalu.', 'Odczytaj <b>' + A + '</b> na sterowaniu: ' + read + '. To pozycja w chwili dotknięcia.', 'Wpisz ją poniżej i wybierz, z której strony była kulka — dostaniesz liczbę do G54 ' + A + '.'];
     var h = '<ol class="zhow">' + how.map(function(t){ return '<li>' + t + '</li>'; }).join('') + '</ol>';
@@ -249,13 +250,41 @@ function zeroCalc(box){
   }
   function calc(){
     var r = calcZero(ZC), out = '';
-    if (r && ZC.ax === 'Z') out = calcResult(esc(ZC.wo) + ' Z — wpisz', f4(r.value), 'Z maszynowe − długość narzędzia − płytka − Z powierzchni. Działa, gdy długości narzędzi są mierzone od nosa wrzeciona (ustawiarka, pomiar na maszynie).');
+    if (r && ZC.ax === 'Z') out = calcResult(esc(ZC.wo) + ' Z — wpisz', f4(r.value), 'Z maszynowe − długość narzędzia − płytka − Z powierzchni. Długość weź z tej samej tabeli ' + (ctl() === 'fanuc' ? 'H' : 'narzędzi') + ', której używa program — wtedy każde narzędzie z dobrą długością trafi w Z0.');
     else if (r && ZC.m === 'center') out = calcResult(esc(ZC.wo) + ' ' + ZC.ax + ' — wpisz', f4(r.value), 'Środek w ' + ZC.ax + ' maszynowym ' + f4(r.at) + (r.size != null ? '. Zmierzony ' + (ZC.kind === 'hole' ? 'otwór' : 'czop') + ': ' + f4(r.size) + ' mm.' : '.'));
     else if (r) out = calcResult(esc(ZC.wo) + ' ' + ZC.ax + ' — wpisz', f4(r.value), 'Krawędź jest w ' + ZC.ax + ' maszynowym ' + f4(r.at) + ' (pozycja ' + (ZC.side < 0 ? '+' : '−') + ' promień ' + f4(parseNum(ZC.d) / 2) + ').');
     else if (ZC.ax === 'Z' && isFinite(parseNum(ZC.p))) out = '<p class="fine">Wpisz długość narzędzia, którym dotykasz. Jeśli w Twoim zakładzie długość = odległość od G54 (G54 Z = 0), użyj przewodnika „Ustaw długość narzędzia”.</p>';
     if (!out) out = '<p class="fine zwait">Wpisz pozycję z ekranu MASZYNA — tu pojawi się liczba do wpisania w ' + esc(ZC.wo) + '.</p>';
     else if (parseNum(ZC.ev)) out += '<p class="note-warn">Uwaga: liczysz z przesunięciem — ' + (ZC.ax === 'Z' ? 'powierzchnia' : 'baza') + ' ma mieć ' + ZC.ax + ' = ' + esc(ZC.ev) + ' (pole w „Więcej”). Jeśli baza programu jest na ' + (ZC.ax === 'Z' ? 'tej powierzchni' : 'krawędzi / środku') + ', wpisz tam 0.</p>';
+    if (ctl() === 'fanuc') out += measureBox(r);
     box.querySelector('#zc-out').innerHTML = out;
+  }
+  /* Fanuc: ekran [WORK] → liczba przy osi → [POMIAR] / [MEASURE] — sterowanie samo liczy układ z obecnej pozycji */
+  function measureBox(r){
+    var A = ZC.ax, wo = esc(ZC.wo), mi = measureInput(ZC);
+    var typ = function(v){ var t = String(r3(v)); return A + (t.indexOf('.') < 0 ? t + '.' : t); };
+    var key = '<b>[POMIAR]</b> / <b>[MEASURE]</b> (nie widać go? najpierw <b>[OPERACJA]</b> / <b>[OPRT]</b>)';
+    var screen = '<b>OFFSET/SETTING</b> → <b>[UKŁ.WSP]</b> / <b>[WORK]</b> → kursor na <b>' + wo + '</b>, wiersz <b>' + A + '</b>.';
+    var st = [], note = '';
+    if (A === 'Z'){
+      st.push('Narzędzie stoi na powierzchni (albo na płytce) — nie odjeżdżaj.');
+      st.push(screen);
+      st.push(mi.withLen != null ? 'Wpisz <b class="mono">' + typ(mi.withLen) + '</b> (długość narzędzia' + (parseNum(ZC.b) ? ' + płytka' : '') + (parseNum(ZC.ev) ? ' + przesunięcie bazy' : '') + ') i naciśnij ' + key + '.' : 'Wpisz wyżej długość narzędzia — podam liczbę do wpisania przed [POMIAR].');
+      st.push('Sprawdź liczbę w ' + wo + ' Z' + (r ? ': ma być <b class="mono">' + f4(r.value) + '</b> (jak w kalkulatorze)' : '') + '. Jeśli różni się dokładnie o długość narzędzia, Twoje sterowanie samo odejmuje aktywną korekcję H — wpisz wtedy <b class="mono">' + typ(mi.plain) + '</b> → [POMIAR] albo liczbę z kalkulatora przez [WPROWADŹ].');
+      note = 'Metoda z narzędziem wzorcowym (długość 0, pozostałe narzędzia mierzone względem niego): wpisz <b class="mono">' + typ(mi.plain) + '</b> → [POMIAR].';
+    } else if (ZC.m === 'center'){
+      st.push('Najedź pokrętłem na środek: <b>' + A + ' MASZYNA = ' + (r ? '<span class="mono">' + f4(r.at) + '</span>' : 'pół drogi między dotknięciami') + '</b>.');
+      st.push(screen);
+      st.push('Wpisz <b class="mono">' + typ(mi.value) + '</b> i naciśnij ' + key + '. Sterowanie ustawi zero tam, gdzie teraz stoi oś wrzeciona.');
+    } else {
+      st.push('Kulka nadal dotyka krawędzi — nie odjeżdżaj.');
+      st.push(screen);
+      st.push(mi ? 'Wpisz <b class="mono">' + typ(mi.value) + '</b> i naciśnij ' + key + '.' : 'Wpisz średnicę kulki — podam liczbę.');
+      if (r) st.push('W polu ' + wo + ' ' + A + ' ma się pojawić <b class="mono">' + f4(r.value) + '</b> — to samo co w kalkulatorze.');
+      if (mi) note = 'Dlaczego nie ' + A + '0? ' + A + '0 wpisujesz tylko wtedy, gdy oś wrzeciona stoi dokładnie nad zerem detalu (np. po najechaniu na środek). Środek kulki Ø' + esc(ZC.d) + ' jest ' + f4(parseNum(ZC.d) / 2) + ' mm od krawędzi, po stronie ' + A + (ZC.side < 0 ? '−' : '+') + ' — dlatego przed [POMIAR] wpisujesz ' + typ(mi.value);
+    }
+    return '<details class="more" open><summary>Bez liczenia: przycisk [POMIAR] na Fanuc</summary><ol class="zhow">' + st.map(function(t){ return '<li>' + t + '</li>'; }).join('') + '</ol>' +
+      (note ? '<p class="fine">' + note + '</p>' : '') + '<p class="fine">[POMIAR] liczy: ' + wo + ' = pozycja MASZYNA − wpisana liczba. Ekran EXT (00) powinien mieć 0. Nie naciskaj [+WPROWADŹ] — doda liczbę do starej wartości.</p></details>';
   }
   box.addEventListener('click', function(e){
     var b = e.target.closest('button[data-v]'); if (!b) return;

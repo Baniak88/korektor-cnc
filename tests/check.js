@@ -10,8 +10,8 @@ const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map(m =
 scripts.forEach((s, i) => { try { new vm.Script(s, { filename: 'script' + i + '.js' }); } catch (e) { console.error('Błąd składni w skrypcie ' + i); throw e; } });
 
 const core = html.match(/<script id="core">([\s\S]*?)<\/script>/)[1];
-const ctx = {}; vm.createContext(ctx); vm.runInContext(core + '\nthis.calcCorrection = calcCorrection; this.processProgram = processProgram; this.simulateProgram = simulateProgram; this.arcPoints = arcPoints; this.calcZero = calcZero; this.calcToolLen = calcToolLen; this.genProgram = genProgram; this.tapInfo = tapInfo; this.cutData = cutData; this.holePattern = holePattern; this.compPaths = compPaths; this.makeStock = makeStock; this.cutSegs = cutSegs; this.resetLocal = resetLocal; this.partTransform = partTransform; this.makeVox = makeVox; this.voxCutSegs = voxCutSegs; this.rotFromAxis = rotFromAxis; this.isoFit = isoFit; this.splitFit = splitFit; this.alarmNumScore = alarmNumScore; this.preflight = preflight;', ctx);
-const { calcCorrection, processProgram, simulateProgram, arcPoints, calcZero, calcToolLen, genProgram, tapInfo, cutData, holePattern, compPaths, makeStock, cutSegs, resetLocal, partTransform, makeVox, voxCutSegs, rotFromAxis, isoFit, splitFit, alarmNumScore, preflight } = ctx;
+const ctx = {}; vm.createContext(ctx); vm.runInContext(core + '\nthis.calcCorrection = calcCorrection; this.processProgram = processProgram; this.simulateProgram = simulateProgram; this.arcPoints = arcPoints; this.calcZero = calcZero; this.calcToolLen = calcToolLen; this.measureInput = measureInput; this.genProgram = genProgram; this.tapInfo = tapInfo; this.cutData = cutData; this.holePattern = holePattern; this.compPaths = compPaths; this.makeStock = makeStock; this.cutSegs = cutSegs; this.resetLocal = resetLocal; this.partTransform = partTransform; this.makeVox = makeVox; this.voxCutSegs = voxCutSegs; this.rotFromAxis = rotFromAxis; this.isoFit = isoFit; this.splitFit = splitFit; this.alarmNumScore = alarmNumScore; this.preflight = preflight;', ctx);
+const { calcCorrection, processProgram, simulateProgram, arcPoints, calcZero, calcToolLen, measureInput, genProgram, tapInfo, cutData, holePattern, compPaths, makeStock, cutSegs, resetLocal, partTransform, makeVox, voxCutSegs, rotFromAxis, isoFit, splitFit, alarmNumScore, preflight } = ctx;
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, a + ' != ' + b);
 
 // Korekcja: otwór Ø20 H7 zmierzony 19.998 → celujemy w środek 20.0105 → ΔR −0.006
@@ -77,6 +77,16 @@ z = calcZero({ ax: 'Z', p: '-400', L: '150', b: '10', ev: '0' });
 near(z.value, -560);
 assert.strictEqual(calcZero({ ax: 'Z', p: '-400', L: '' }), null);
 assert.strictEqual(calcZero({ ax: 'X', m: 'edge', p: '', d: '10' }), null);
+// Fanuc [POMIAR]: liczba wpisana przy osi; układ = pozycja maszynowa − liczba (ta sama wartość co calcZero)
+let mi = measureInput({ ax: 'X', m: 'edge', side: -1, d: '10', ev: '0' });
+near(mi.value, -5); near(-412.5 - mi.value, -407.5);
+mi = measureInput({ ax: 'Y', m: 'edge', side: 1, d: '6', ev: '20' });
+near(mi.value, 23); near(-150 - mi.value, -173);
+near(measureInput({ ax: 'X', m: 'center', ev: '0' }).value, 0);
+assert.strictEqual(measureInput({ ax: 'X', m: 'edge', side: -1, d: '' }), null);
+mi = measureInput({ ax: 'Z', L: '150', b: '10', ev: '0' });
+near(mi.plain, 10); near(mi.withLen, 160); near(-400 - mi.withLen, -560);
+assert.strictEqual(measureInput({ ax: 'Z', L: '', b: '' }).withLen, null);
 // Długość narzędzia: Z maszynowe −250, G54 Z −560, płytka 10 → 300
 near(calcToolLen({ m: 'part', p: '-250', base: '-560', b: '10' }), 300);
 // Metoda G54 Z = 0: Z maszynowe −420.3, płytka 0 → −420.3
