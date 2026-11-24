@@ -10,7 +10,8 @@ var GUIDES = {
         '<b>OFFSET/SETTING</b> → przycisk ekranowy <b>[UKŁ.WSP]</b> / <b>[WORK]</b> → kursor na G54 (albo inny układ) i oś.',
         'Wpisz wynik z kalkulatora i naciśnij <b>[WPROWADŹ]</b> / <b>[INPUT]</b>. Nie [+WPROWADŹ] — to doda wartość do starej.',
         'Bez liczenia — <b>[POMIAR]</b> / <b>[MEASURE]</b>: nie odjeżdżaj od krawędzi, na ekranie [WORK] ustaw kursor na G54 i oś, wpisz pozycję, jaką ma mieć oś wrzeciona (np. <b>X-5.</b> przy kulce Ø10 dotykającej z lewej, <b>X5.</b> z prawej) i naciśnij [POMIAR] (czasem najpierw [OPERACJA] / [OPRT]). <b>X0</b> / <b>Y0</b> wpisujesz tylko, gdy wrzeciono stoi dokładnie nad zerem — np. po najechaniu na środek otworu. Kalkulator wyżej podaje gotową liczbę.',
-        'Z0 narzędziem: wywołaj narzędzie ze zmierzoną długością (T… M06), dotknij górnej powierzchni przez płytkę, na ekranie [WORK] wiersz Z wpisz <b>Z</b> = długość narzędzia + grubość płytki → [POMIAR]. Sprawdź, czy G54 Z zgadza się z kalkulatorem (oś Z) — sterowanie z innymi parametrami może samo odjąć długość H.',
+        'Z0 narzędziem: w <b>MDI</b> <b>T5 M06</b>, potem <b>G43 H5</b> — kod, który każe czytać długość narzędzia z tabeli korekcji (sprawdź na ekranie MDI, że aktywne są G43 i H5). Dotknij górnej powierzchni przez płytkę, na ekranie [WORK] wiersz Z wpisz grubość płytki (np. <b>Z1.</b>, bez płytki <b>Z0.</b>) → [POMIAR]. Porównaj G54 Z z kalkulatorem (oś Z).',
+        'Co robi każdy przycisk ekranowy ([ABS], [REL], [OPRT], [MEASUR], [+INPUT]…) — przewodnik „Przyciski ekranowe sterowania”.',
         'Sprawdź w <b>MDI</b>: <b>G90 G54 G00 X0 Y0</b> na bezpiecznej wysokości i zobacz, czy narzędzie stoi tam, gdzie trzeba.'
       ],
       sinumerik: [
@@ -22,6 +23,7 @@ var GUIDES = {
         'Sprawdź w <b>MDA</b>: <b>G54 G0 X0 Y0</b> na bezpiecznej wysokości.'
       ]
     },
+    links: ['softkeys'],
     warn: ['Przed sprawdzeniem w MDI/MDA ustaw posuw szybki na 25% i trzymaj rękę na STOP.', 'Nazwy przycisków mogą się trochę różnić zależnie od wersji i języka sterowania.']
   },
   tool: {
@@ -267,11 +269,12 @@ function zeroCalc(box){
     var screen = '<b>OFFSET/SETTING</b> → <b>[UKŁ.WSP]</b> / <b>[WORK]</b> → kursor na <b>' + wo + '</b>, wiersz <b>' + A + '</b>.';
     var st = [], note = '';
     if (A === 'Z'){
-      st.push('Narzędzie stoi na powierzchni (albo na płytce) — nie odjeżdżaj.');
+      st.push('W <b>MDI</b> wywołaj narzędzie i włącz jego długość z tabeli: <b>T5 M06</b>, potem <b>G43 H5</b> <button type="button" class="q" data-term="g43h" aria-label="Co to jest G43 H?">?</button> (H = wiersz z długością tego narzędzia) → CYCLE START. Sprawdź na ekranie MDI, że aktywne są G43 i H5. Bez tego sterowanie liczy od nosa wrzeciona.');
+      st.push('Dotknij powierzchni (albo przez płytkę) i nie odjeżdżaj.');
       st.push(screen);
-      st.push(mi.withLen != null ? 'Wpisz <b class="mono">' + typ(mi.withLen) + '</b> (długość narzędzia' + (parseNum(ZC.b) ? ' + płytka' : '') + (parseNum(ZC.ev) ? ' + przesunięcie bazy' : '') + ') i naciśnij ' + key + '.' : 'Wpisz wyżej długość narzędzia — podam liczbę do wpisania przed [POMIAR].');
-      st.push('Sprawdź liczbę w ' + wo + ' Z' + (r ? ': ma być <b class="mono">' + f4(r.value) + '</b> (jak w kalkulatorze)' : '') + '. Jeśli różni się dokładnie o długość narzędzia, Twoje sterowanie samo odejmuje aktywną korekcję H — wpisz wtedy <b class="mono">' + typ(mi.plain) + '</b> → [POMIAR] albo liczbę z kalkulatora przez [WPROWADŹ].');
-      note = 'Metoda z narzędziem wzorcowym (długość 0, pozostałe narzędzia mierzone względem niego): wpisz <b class="mono">' + typ(mi.plain) + '</b> → [POMIAR].';
+      st.push('Wpisz <b class="mono">' + typ(mi.plain) + '</b> (' + (parseNum(ZC.b) ? 'grubość płytki' : 'bez płytki') + (parseNum(ZC.ev) ? ' + przesunięcie bazy' : '') + ') i naciśnij ' + key + '.');
+      st.push('Sprawdź liczbę w ' + wo + ' Z' + (r ? ': ma być <b class="mono">' + f4(r.value) + '</b> (jak w kalkulatorze)' : ' — porównaj z kalkulatorem') + '. Różnica dokładnie o długość narzędzia = G43 nie był aktywny.');
+      note = mi.withLen != null ? 'Bez G43 (sterowanie nie zna długości): wpisz <b class="mono">' + typ(mi.withLen) + '</b> (długość + płytka) → [POMIAR]. Narzędzie wzorcowe o długości 0: <b class="mono">' + typ(mi.plain) + '</b> → [POMIAR]' : '';
     } else if (ZC.m === 'center'){
       st.push('Najedź pokrętłem na środek: <b>' + A + ' MASZYNA = ' + (r ? '<span class="mono">' + f4(r.at) + '</span>' : 'pół drogi między dotknięciami') + '</b>.');
       st.push(screen);
@@ -624,3 +627,128 @@ GUIDES.limit.render = function(box){
   box.addEventListener('input', function(e){ var m = {'ot-wo':'wo', 'ot-prog':'prog', 'ot-ext':'ext', 'ot-pos':'pos'}[e.target.id]; if (m){ OTC[m] = e.target.value; save(); calc(); } });
   render();
 };
+
+/* Przyciski ekranowe (softkey): co robią i do czego się przydają. Fanuc — ekrany POS / OFFSET / WORK / PROG i gotowe przepisy; Sinumerik — krótko. */
+var SOFTKEYS = {
+  fanuc: {
+    intro: 'Przyciski ekranowe to rząd klawiszy pod ekranem — ich znaczenie zmienia się z ekranem. Najpierw wybierasz ekran klawiszem na panelu (<b>POS</b>, <b>OFFSET/SETTING</b>, <b>PROG</b>), potem przycisk ekranowy. Nazwy są podane po angielsku i po polsku — zależnie od języka sterowania. Mogą się trochę różnić w Twojej wersji.',
+    screens: [
+      ['all', 'Ogólne', 'Na każdym ekranie', [
+        ['◂ (lewy skrajny)', 'Wraca do poprzedniego rzędu przycisków.', 'Gdy po wejściu w podmenu nie widać przycisków, których szukasz.'],
+        ['▸ (prawy skrajny)', 'Pokazuje kolejne przyciski tego ekranu.', 'Gdy szukanego przycisku nie ma w rzędzie.'],
+        ['[OPRT] / [OPERACJA]', 'Rząd przycisków działań na tym ekranie: szukanie, wpisywanie, pomiar, zerowanie.', 'Prawie zawsze przed [MEASUR], [+INPUT], [ORIGIN], [NO.SRH].']
+      ]],
+      ['pos', 'POS', 'Klawisz POS — pozycja osi', [
+        ['[ABS] / [ABSOLUTNE]', 'Pozycja narzędzia w aktywnym układzie (G54…). Przy aktywnym G43 — pozycja końca narzędzia.', 'Sprawdzasz, gdzie stoi narzędzie względem zera detalu, np. po ustawieniu G54.'],
+        ['[REL] / [WZGLĘDNE]', 'Licznik, który możesz zerować i ustawiać sam. Nie zmienia niczego w maszynie.', 'Szukanie środka, mierzenie odległości pokrętłem, pomocniczy „zerowy punkt”.'],
+        ['[ALL] / [WSZYSTKO]', 'Naraz: ABSOLUTNE, WZGLĘDNE, MASZYNA i POZOSTAŁO (droga do końca bloku).', 'Odczyt <b>MASZYNA</b> do kalkulatora. POZOSTAŁO przy pierwszym przejeździe — ile jeszcze zjedzie oś.'],
+        ['[OPRT] → [ORIGIN] / [ZERUJ]', 'Litera osi (np. <b>X</b>) → [ORIGIN] ustawia WZGLĘDNE X na 0. Dla wszystkich osi jest zwykle [ALL AXES].', 'Pierwsze dotknięcie przy szukaniu środka, pomiar długości od płytki.'],
+        ['[OPRT] → [PRESET] / [USTAW]', 'Np. <b>X25.</b> → [PRESET] ustawia WZGLĘDNE X na 25.', 'Gdy chcesz, żeby licznik pokazywał od razu odległość od krawędzi.']
+      ]],
+      ['offset', 'Korekcje', 'OFFSET/SETTING → [OFFSET] / [KOREKCJA]', [
+        ['[OFFSET] / [KOREKCJA]', 'Tabela narzędzi. <b>GEOM (H)</b> = długość, <b>ZUŻYCIE (H)</b> = poprawka długości, <b>GEOM (D)</b> = promień, <b>ZUŻYCIE (D)</b> = poprawka promienia.', 'Nowe narzędzie (geometria), korekta z pomiaru detalu (zużycie).'],
+        ['[OPRT] → [NO.SRH] / [SZUK.NR]', 'Wpisz numer (np. <b>5</b>) → kursor skacze do wiersza 5.', 'Szybkie dojście do korekcji H5 / D5 zamiast przewijania.'],
+        ['[INPUT] / [WPROWADŹ]', 'Wpisana liczba <b>zastępuje</b> starą (to samo robi klawisz INPUT).', 'Nowa długość narzędzia, zerowanie zużycia nowego narzędzia (0).'],
+        ['[+INPUT] / [+WPROWADŹ]', 'Wpisana liczba <b>dodaje się</b> do starej: −0.02 przy 0.05 da 0.03.', 'Korekta zużycia z pomiaru. Naciśnięte dwa razy = dodane dwa razy — sprawdź wynik.'],
+        ['[INP.C.] / [WPR.WSP]', 'Wpisuje do korekcji obecną pozycję <b>WZGLĘDNĄ</b> osi (np. Z).', 'Pomiar długości: zeruj WZGL Z na powierzchni odniesienia, dotknij narzędziem, kursor na GEOM (H), <b>Z</b> → [INP.C.]. Nie każde sterowanie to ma — sprawdź w instrukcji.'],
+        ['[CLEAR] / [KASUJ]', 'Czyści całą tabelę (wszystko, samą geometrię albo samo zużycie).', 'Prawie nigdy. Skasowane długości = kolizja. Pytaj przed użyciem.']
+      ]],
+      ['work', 'Układy', 'OFFSET/SETTING → [WORK] / [UKŁ.WSP]', [
+        ['[WORK] / [UKŁ.WSP]', 'Tabela punktów zerowych: 00 EXT (dodawany do wszystkich), 01 = G54 … 06 = G59, dalej G54.1 P…, jeśli maszyna ma tę opcję.', 'Ustawianie i sprawdzanie punktu zerowego detalu.'],
+        ['[OPRT] → [NO.SRH] / [SZUK.NR]', 'Numer układu → kursor na nim: <b>1</b> = G54, <b>2</b> = G55 … <b>0</b> = EXT.', 'Szybkie wejście w G54 / G55.'],
+        ['[MEASUR] / [POMIAR]', 'Wpisujesz, jaką pozycję <b>ma mieć teraz</b> oś wrzeciona w tym układzie (np. <b>X0.</b>, <b>X-5.</b>, <b>Z0.</b>) — sterowanie samo policzy wartość układu z obecnej pozycji.', 'Punkt zerowy bez liczenia: krawędź kulką, środek otworu, Z0 narzędziem (przepisy niżej).'],
+        ['[INPUT] / [WPROWADŹ]', 'Wpisana liczba zastępuje wartość układu.', 'Wpisanie wyniku z kalkulatora punktu zerowego.'],
+        ['[+INPUT] / [+WPROWADŹ]', 'Dodaje do wartości układu.', 'Przesunięcie zera o znaną wartość, np. <b>0.1</b> po zmierzeniu, że detal jest przesunięty.']
+      ]],
+      ['set', 'Ustaw.', 'OFFSET/SETTING → [SETTING] / [USTAW] i [MACRO]', [
+        ['[SETTING] / [USTAW]', 'Ustawienia ogólne: zgoda na zapis parametrów (PWE), jednostki, kanał przesyłu programów, licznik detali i czas pracy (PARTS COUNT, PARTS REQUIRED).', 'Zerowanie licznika detali, ustawienie ilości do zrobienia. <b>PWE (zapis parametrów) zostaw na 0</b> — tylko serwis.'],
+        ['[MACRO] / [ZMIENNE]', 'Zmienne makro: #100… (kasowane po wyłączeniu, zależnie od ustawień), #500… (pamiętane).', 'Odczyt, gdy program albo instrukcja maszyny każe coś sprawdzić. #500… mogą trzymać dane sondy i zmieniacza — nie zmieniaj bez zgody.']
+      ]],
+      ['prog', 'PROG', 'Klawisz PROG — programy', [
+        ['[PROGRAM]', 'Treść programu. W trybie MDI — okno do wpisania kilku linii.', 'Czytanie i edycja (tryb EDIT), krótkie polecenia w MDI.'],
+        ['[DIR] / [KATALOG]', 'Lista programów w pamięci z rozmiarem.', 'Wybór programu: w EDIT albo MEM wpisz <b>O1234</b> → kursor ↓ (albo [O SRH]).'],
+        ['[CHECK] / [SPRAWDŹ]', 'Program, pozycje i aktywne kody (G, H, D, F, S) na jednym ekranie — jeśli Twoja wersja to ma.', 'Przejazd na sucho i pierwszy detal; sprawdzenie, czy działa G43 z dobrym H.']
+      ]]
+    ],
+    recipes: [
+      ['G54 X / Y — krawędź kulką', [
+        'Dotknij kulką krawędzi pokrętłem, na końcu krok 0.001. Nie odjeżdżaj.',
+        '<b>OFFSET/SETTING</b> → [WORK] → [OPRT] → <b>1</b> [NO.SRH] (G54) → kursor na <b>X</b>.',
+        'Wpisz pozycję środka kulki względem krawędzi: kulka Ø10 z lewej (X−) → <b>X-5.</b>, z prawej → <b>X5.</b> → [MEASUR].',
+        'Tak samo Y: z przodu (od operatora, Y−) → <b>Y-5.</b>, z tyłu → <b>Y5.</b>'
+      ], 'zero'],
+      ['G54 X / Y — środek otworu przez WZGLĘDNE', [
+        'Dotknij lewej ściany otworu. <b>POS</b> → [REL] → [OPRT] → <b>X</b> → [ORIGIN] (WZGL X = 0).',
+        'Dotknij prawej ściany. Odczytaj WZGL X, np. <b>40.000</b>.',
+        'Odjedź od ściany i najedź na połowę: WZGL X = <b>20.000</b> — to środek.',
+        '[WORK] → G54 → kursor na X → <b>X0.</b> → [MEASUR]. Potem tak samo Y (w osi X stoisz już na środku).'
+      ], 'zero'],
+      ['G54 Z — Z0 narzędziem', [
+        'W <b>MDI</b>: <b>T5 M06</b> (Twoje narzędzie), potem kod, który każe czytać długość z tabeli korekcji: <b>G43 H5</b> (H = wiersz z długością tego narzędzia) → CYCLE START. Jeśli u Was razem z G43 wpisuje się ruch Z — rób to jak zwykle, posuw szybki 25%.',
+        'Sprawdź w MDI (PROG albo [CHECK]), że aktywne są <b>G43</b> i <b>H5</b>. Bez tego sterowanie liczy od nosa wrzeciona, a nie od końca narzędzia.',
+        'Zjedź pokrętłem i dotknij górnej powierzchni przez płytkę (np. 1 mm), aż ledwo nie przejdzie.',
+        '[WORK] → G54 → kursor na <b>Z</b> → wpisz grubość płytki: <b>Z1.</b> (bez płytki <b>Z0.</b>) → [MEASUR].',
+        'Porównaj G54 Z z kalkulatorem punktu zerowego (oś Z). Bez G43 trzeba by wpisać Z = długość + płytka.'
+      ], 'zero'],
+      ['Długość narzędzia przez [INP.C.]', [
+        'Dotknij narzędziem wzorcowym albo nosem wrzeciona przez płytkę powierzchni odniesienia (stół, płytka, detal — jak u Was przyjęte).',
+        '<b>POS</b> → [REL] → <b>Z</b> → [ORIGIN] (WZGL Z = 0).',
+        'Wymień narzędzie, dotknij tej samej powierzchni przez tę samą płytkę.',
+        '<b>OFFSET/SETTING</b> → [OFFSET] → kursor na GEOM (H) tego narzędzia → <b>Z</b> → [INP.C.]. Zużycie (H) ustaw na 0.'
+      ], 'tool'],
+      ['Korekta z pomiaru detalu', [
+        'Policz korektę w zakładce Korekcja.',
+        '<b>OFFSET/SETTING</b> → [OFFSET] → [OPRT] → numer [NO.SRH] → kursor na <b>ZUŻYCIE</b> (D albo H).',
+        'Wpisz korektę, np. <b>-0.02</b> → <b>[+INPUT]</b>. Sprawdź, czy wynik w polu się zgadza.'
+      ], 'offset']
+    ]
+  },
+  sinumerik: {
+    intro: 'Sinumerik ma przyciski ekranowe poziome (pod ekranem) i pionowe (z prawej). Najpierw obszar klawiszem na panelu (<b>Maszyna</b>, <b>Parametry</b>, <b>Program</b>, <b>Menedżer programów</b>, <b>Diagnostyka</b>), potem przycisk. Nazwy zależą od wersji i języka.',
+    screens: [
+      ['mach', 'Maszyna', 'Obszar Maszyna (JOG / MDA / AUTO)', [
+        ['Pomiar detalu / Meas. workpiece (JOG)', 'Krawędź, narożnik, otwór, czop — sterowanie liczy punkt zerowy z dotknięć i promienia narzędzia z tabeli.', 'Ustawianie G54 bez liczenia.'],
+        ['Pomiar narzędzia / Meas. tool (JOG)', 'Długość albo promień z dotknięcia powierzchni o znanej pozycji.', 'Nowe narzędzie.'],
+        ['Ustaw PPZ / Set WO', 'Ustawia wybraną oś aktywnego przesunięcia tak, by obecna pozycja miała wpisaną wartość.', 'Szybkie zero w jednej osi.'],
+        ['WKS / MKS', 'Przełącza wyświetlanie: układ detalu albo maszyny.', 'MKS — odczyt do kalkulatora.']
+      ]],
+      ['par', 'Parametry', 'Obszar Parametry', [
+        ['Lista narzędzi', 'Typ, długość, promień ostrzy D.', 'Nowe narzędzie.'],
+        ['Zużycie narzędzia', 'ΔL i ΔR.', 'Korekty z pomiaru.'],
+        ['Przesunięcie PZ / Work offset', 'G54…G57, G505…', 'Sprawdzenie i wpisanie punktu zerowego.'],
+        ['Zmienne użytkownika', 'Parametry R i zmienne globalne.', 'Tylko odczyt, gdy program każe coś sprawdzić.']
+      ]]
+    ],
+    recipes: []
+  }
+};
+var SKS = store.get('sks', 'work');
+GUIDES.softkeys = {
+  title: 'Przyciski ekranowe sterowania', sub: 'Co robią i do czego się przydają (softkey)',
+  keys: 'softkey softkeye przyciski ekranowe klawisze pod ekranem measure measur pomiar input +input wprowadz origin preset rel wzgledne abs absolutne all wszystko oprt operacja no.srh szukaj inp.c clear kasuj work offset setting macro dir check g43 h',
+  links: ['zero', 'tool'],
+  render: function(box){
+    var c = ctl(), D = SOFTKEYS[c];
+    function draw(){
+      var scr = D.screens.filter(function(s){ return s[0] === SKS; })[0] || D.screens[0];
+      var h = '<p class="fine sk-intro">' + D.intro + ' <button type="button" class="q" data-term="softkey" aria-label="Co to jest przycisk ekranowy?">?</button></p>';
+      h += '<div class="seg sk-seg" id="sk-scr">' + D.screens.map(function(s){ return '<button type="button" data-v="' + s[0] + '" aria-pressed="' + (s === scr) + '">' + esc(s[1]) + '</button>'; }).join('') + '</div>';
+      h += '<span class="glab">' + esc(scr[2]) + '</span><div class="sk-list">' + scr[3].map(function(k){
+        return '<div class="sk"><span class="sk-key mono">' + k[0] + '</span><p>' + k[1] + '</p><p class="sk-use"><b>Kiedy:</b> ' + k[2] + '</p></div>';
+      }).join('') + '</div>';
+      if (D.recipes.length) h += '<span class="glab">Gotowe przepisy</span>' + D.recipes.map(function(r){
+        return '<details class="more sk-rec"><summary>' + esc(r[0]) + '</summary><ol class="zhow">' + r[1].map(function(t){ return '<li>' + t + '</li>'; }).join('') + '</ol>' +
+          (r[2] ? '<button type="button" class="btn wide" data-guide="' + r[2] + '">' + esc(GUIDES[r[2]].title) + '</button>' : '') + '</details>';
+      }).join('');
+      box.innerHTML = h;
+    }
+    if (!D.screens.some(function(s){ return s[0] === SKS; })) SKS = D.screens[0][0];
+    box.addEventListener('click', function(e){
+      var b = e.target.closest('#sk-scr button[data-v]'); if (!b) return;
+      SKS = b.getAttribute('data-v'); store.set('sks', SKS); draw();
+    });
+    draw();
+  },
+  warn: ['Nazwy i położenie przycisków zależą od wersji i języka sterowania oraz od producenta maszyny — w razie wątpliwości instrukcja maszyny.', 'Po każdej zmianie układu albo korekcji: pierwszy ruch z posuwem szybkim 25% i pojedynczym blokiem.']
+};
+START_GROUPS[1][1].push({guide:'softkeys', i:'<rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M5 20h3M10.5 20h3M16 20h3"/>', c:'teal'});

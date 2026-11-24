@@ -832,4 +832,16 @@ body{background-color:var(--bg);background-image:linear-gradient(var(--grid) 1px
 @media (max-width:360px){ .mtools{grid-template-columns:repeat(3,minmax(0,1fr))} .mtool{grid-auto-flow:column;justify-content:start;align-items:center;gap:6px;padding:8px} .mtool span{font-size:12.5px;text-align:left} }
 .mtool span{overflow-wrap:normal}
 
+
+/* Przyciski ekranowe sterowania (GUIDES.softkeys) */
+.sk-intro{margin:0 0 10px}
+.sk-seg button{min-width:0;padding-left:4px;padding-right:4px;font-size:14px}
+.sk-list{display:grid;gap:0;background:var(--surface);border:.5px solid var(--line);border-radius:var(--r);margin-top:8px}
+.sk{padding:11px 14px;border-bottom:.5px solid var(--line)}
+.sk:last-child{border-bottom:0}
+.sk-key{display:inline-block;font-weight:600;color:var(--accent);font-size:14px;margin-bottom:3px}
+.sk p{margin:0;font-size:14.5px;line-height:1.42}
+.sk p.sk-use{margin-top:4px;color:var(--muted)}
+.sk-rec{margin-top:8px}
+.sk-rec .btn{margin-top:8px}
 </style>
